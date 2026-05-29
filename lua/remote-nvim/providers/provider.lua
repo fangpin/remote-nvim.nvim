@@ -17,6 +17,7 @@
 ---@field client_auto_start boolean? Flag indicating if the client should be auto started or not
 ---@field offline_mode boolean? Should we operate in offline mode
 ---@field devpod_source_opts remote-nvim.providers.DevpodSourceOpts? Devpod related source options
+---@field working_dir string? Working directory to use when launching remote Neovim
 
 ---@class remote-nvim.providers.Provider: remote-nvim.Object
 ---@field host string Host name
@@ -94,6 +95,7 @@ end
 ---@field unique_host_id string? Unique host ID
 ---@field provider_type provider_type Provider type
 ---@field devpod_opts remote-nvim.providers.devpod.DevpodOpts? Devpod options
+---@field working_dir string? Working directory to use when launching remote Neovim
 
 ---Create new provider instance
 ---@param opts remote-nvim.providers.ProviderOpts Provider options
@@ -119,7 +121,7 @@ function Provider:init(opts)
 
   -- Remote configuration parameters
   opts.devpod_opts = opts.devpod_opts or {}
-  self._remote_working_dir = opts.devpod_opts.working_dir
+  self._remote_working_dir = opts.working_dir or opts.devpod_opts.working_dir
 
   ---@diagnostic disable-next-line: missing-fields
   self._host_config = {}
@@ -148,11 +150,13 @@ function Provider:_setup_workspace_variables()
       config_copy = nil,
       client_auto_start = nil,
       workspace_id = utils.generate_random_string(10),
+      working_dir = self._remote_working_dir,
     })
   else
     self.logger.debug("Found an existing configuration. Re-using the same configuration..")
   end
   self._host_config = self._config_provider:get_workspace_config(self.unique_host_id)
+  self._remote_working_dir = self._remote_working_dir or self._host_config.working_dir
 
   -- Gather remote OS information
   if self._host_config.os == nil or self._host_config.arch == nil then
@@ -240,6 +244,24 @@ function Provider:_setup_workspace_variables()
     utils.path_join(self._remote_is_windows, self._remote_xdg_config_path, remote_nvim.config.remote.app_name)
 
   self:_add_session_info()
+end
+
+---@private
+---Get the remote working directory to use when launching Neovim.
+function Provider:_setup_remote_working_dir()
+  self._remote_working_dir = self._remote_working_dir or self._host_config.working_dir
+
+  if self.provider_type == "ssh" and self._remote_working_dir == nil then
+    self._remote_working_dir =
+      vim.trim(provider_utils.get_input("Remote working directory (optional, blank for default): "))
+  end
+
+  if self._remote_working_dir ~= self._host_config.working_dir then
+    self._host_config.working_dir = self._remote_working_dir
+    self._config_provider:update_workspace_config(self.unique_host_id, {
+      working_dir = self._remote_working_dir,
+    })
+  end
 end
 
 ---@private
@@ -738,8 +760,11 @@ function Provider:_launch_remote_neovim_server()
     )
 
     -- If we have a specified working directory, we launch there
-    if self._remote_working_dir then
-      remote_server_launch_cmd = ("%s --cmd ':cd %s'"):format(remote_server_launch_cmd, self._remote_working_dir)
+    if self._remote_working_dir and self._remote_working_dir ~= "" then
+      remote_server_launch_cmd = ("%s --cmd %s"):format(
+        remote_server_launch_cmd,
+        vim.fn.shellescape(("cd %s"):format(vim.fn.fnameescape(self._remote_working_dir)))
+      )
     end
 
     self:_run_code_in_coroutine(function()
@@ -895,6 +920,7 @@ function Provider:_launch_neovim(start_run)
       self._neovim_launch_number = self._neovim_launch_number + 1
     end
     self:_setup_workspace_variables()
+    self:_setup_remote_working_dir()
     self:_setup_remote()
     self:_launch_remote_neovim_server()
   end

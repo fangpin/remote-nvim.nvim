@@ -415,6 +415,15 @@ remote-nvim.nvim")
 
 For demos about the commands, see the [demos](#-demos) section.
 
+### SSH workspace working directory
+
+When creating an SSH workspace, `remote-nvim` asks for an optional remote working directory. If provided, the value is
+saved in the workspace record and reused on later `:RemoteStart` runs. The remote headless Neovim server is launched
+with that directory as its current directory, which helps tools like language servers discover project files such as
+`go.mod`.
+
+Leave the prompt blank to keep the remote shell's default startup directory, usually `$HOME`.
+
 ## 🥨 Integration with statusline
 
 The plugin sets the variable `vim.g.remote_neovim_host` to `true` on the remote Neovim instance. This can be used to add

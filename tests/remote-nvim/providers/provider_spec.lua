@@ -224,6 +224,60 @@ describe("Provider", function()
         state = { "h/e/x", "h/e/y", "h/e/z" },
       }, provider._local_path_copy_dirs)
     end)
+
+    describe("by setting remote working directory", function()
+      local get_input_stub
+
+      before_each(function()
+        provider.provider_type = "ssh"
+        get_input_stub = stub(require("remote-nvim.providers.utils"), "get_input")
+      end)
+
+      it("from saved workspace config", function()
+        provider._config_provider:update_workspace_config(provider.unique_host_id, {
+          working_dir = "/saved/workspace",
+        })
+        provider._host_config = provider._config_provider:get_workspace_config(provider.unique_host_id)
+        provider._remote_working_dir = nil
+
+        provider:_setup_remote_working_dir()
+
+        assert.equals("/saved/workspace", provider._remote_working_dir)
+        assert.stub(get_input_stub).was.not_called()
+      end)
+
+      it("by prompting once for SSH workspaces without saved config", function()
+        get_input_stub.returns("/remote/project")
+        provider._config_provider:update_workspace_config(provider.unique_host_id, {
+          working_dir = nil,
+        })
+        provider._host_config = provider._config_provider:get_workspace_config(provider.unique_host_id)
+        provider._remote_working_dir = nil
+
+        provider:_setup_remote_working_dir()
+
+        assert.equals("/remote/project", provider._remote_working_dir)
+        assert.equals(
+          "/remote/project",
+          provider._config_provider:get_workspace_config(provider.unique_host_id).working_dir
+        )
+        assert.stub(get_input_stub).was.called_with("Remote working directory (optional, blank for default): ")
+      end)
+
+      it("by persisting an empty SSH working directory to keep default remote shell directory", function()
+        get_input_stub.returns("")
+        provider._config_provider:update_workspace_config(provider.unique_host_id, {
+          working_dir = nil,
+        })
+        provider._host_config = provider._config_provider:get_workspace_config(provider.unique_host_id)
+        provider._remote_working_dir = nil
+
+        provider:_setup_remote_working_dir()
+
+        assert.equals("", provider._remote_working_dir)
+        assert.equals("", provider._config_provider:get_workspace_config(provider.unique_host_id).working_dir)
+      end)
+    end)
   end)
 
   describe("should correctly gather available neovim versions", function()
@@ -848,7 +902,19 @@ describe("Provider", function()
         assert.stub(local_free_port_stub).was.called()
         assert.stub(run_command_stub).was.called_with(
           match.is_ref(provider),
-          "XDG_CONFIG_HOME=~/.remote-nvim/workspaces/ajfdalfj/.config XDG_DATA_HOME=~/.remote-nvim/workspaces/ajfdalfj/.local/share XDG_STATE_HOME=~/.remote-nvim/workspaces/ajfdalfj/.local/state XDG_CACHE_HOME=~/.remote-nvim/workspaces/ajfdalfj/.cache NVIM_APPNAME=nvim ~/.remote-nvim/nvim-downloads/stable/bin/nvim --listen 0.0.0.0:32123 --headless --cmd ':cd /home/test-user'",
+          "XDG_CONFIG_HOME=~/.remote-nvim/workspaces/ajfdalfj/.config XDG_DATA_HOME=~/.remote-nvim/workspaces/ajfdalfj/.local/share XDG_STATE_HOME=~/.remote-nvim/workspaces/ajfdalfj/.local/state XDG_CACHE_HOME=~/.remote-nvim/workspaces/ajfdalfj/.cache NVIM_APPNAME=nvim ~/.remote-nvim/nvim-downloads/stable/bin/nvim --listen 0.0.0.0:32123 --headless --cmd 'cd /home/test-user'",
+          match.is_string(),
+          "-t -L 52232:localhost:32123",
+          match.is_function()
+        )
+      end)
+
+      it("when an empty working directory is set", function()
+        provider._remote_working_dir = ""
+        provider:_launch_remote_neovim_server()
+        assert.stub(run_command_stub).was.called_with(
+          match.is_ref(provider),
+          "XDG_CONFIG_HOME=~/.remote-nvim/workspaces/ajfdalfj/.config XDG_DATA_HOME=~/.remote-nvim/workspaces/ajfdalfj/.local/share XDG_STATE_HOME=~/.remote-nvim/workspaces/ajfdalfj/.local/state XDG_CACHE_HOME=~/.remote-nvim/workspaces/ajfdalfj/.cache NVIM_APPNAME=nvim ~/.remote-nvim/nvim-downloads/stable/bin/nvim --listen 0.0.0.0:32123 --headless",
           match.is_string(),
           "-t -L 52232:localhost:32123",
           match.is_function()

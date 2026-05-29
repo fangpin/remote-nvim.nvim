@@ -11,6 +11,9 @@ function M.get_workspace_devpod_opts(workspace_data)
   if workspace_data.devpod_source_opts ~= nil then
     devpod_opts["source_opts"] = workspace_data.devpod_source_opts
   end
+  if workspace_data.working_dir ~= nil then
+    devpod_opts["working_dir"] = workspace_data.working_dir
+  end
   return devpod_opts
 end
 
