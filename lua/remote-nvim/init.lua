@@ -35,7 +35,7 @@ local utils = require("remote-nvim.utils")
 
 ---@class remote-nvim.config.PluginConfig.SSHConfig
 ---@field ssh_binary string Name of binary on runtime path for ssh
----@field scp_binary string Name of binary on runtime path for scp
+---@field rsync_binary string Name of binary on runtime path for rsync
 ---@field ssh_config_file_paths string[] Location of SSH configuration files that you want the plugin to consider
 ---@field ssh_prompts remote-nvim.config.PluginConfig.SSHConfig.SSHPrompt[] List of SSH prompts that should be considered for input
 
@@ -105,7 +105,7 @@ M.default_opts = {
   },
   ssh_config = {
     ssh_binary = "ssh",
-    scp_binary = "scp",
+    rsync_binary = "rsync",
     ssh_config_file_paths = { "$HOME/.ssh/config" },
     ssh_prompts = {
       { -- Handle default password style on Linux/macOS

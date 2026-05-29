@@ -64,6 +64,7 @@ features.
 - Neovim >= 0.9.0 (as `nvim`)
 - Binaries
   - `curl`
+  - `rsync`
   - `tar` (optional; if you use compressed uploads)
   - [`devpod`](https://devpod.sh/docs/getting-started/install#optional-install-devpod-cli) >= 0.5.0 (optional;
   if you want to use devcontainer)
@@ -81,6 +82,7 @@ it's own trade offs.
 - Binaries
   - `bash`
   - `curl` or `wget`
+  - `rsync`
 
 Connectivity to [neovim repo](https://github.com/neovim/neovim) on GitHub is not needed when using
 [Offline mode](#-offline-mode).
@@ -137,7 +139,7 @@ Please read the associated comments before changing the value.
   -- Configuration for SSH connections
   ssh_config = {
     ssh_binary = "ssh", -- Binary to use for running SSH command
-    scp_binary = "scp", -- Binary to use for running SSH copy commands
+    rsync_binary = "rsync", -- Binary to use for running rsync copy commands
     ssh_config_file_paths = { "$HOME/.ssh/config" }, -- Which files should be considered to contain the ssh host configurations. NOTE: `Include` is respected in the provided files.
 
     -- These are useful for password-based SSH authentication.
@@ -571,6 +573,23 @@ uploading by setting `compression.enabled` to `true` for those particular upload
   v0.9.2](https://github.com/neovim/neovim/releases/tag/v0.9.2).
 
 ## FAQ
+
+### Why can remote tools be missing even though they are configured in my shell?
+
+`remote-nvim` runs commands on the remote host over SSH and launches a headless Neovim server from that remote
+command environment. This is usually a non-interactive, non-login shell, so interactive startup files such as
+`~/.zshrc` are not guaranteed to be loaded.
+
+Put binary `PATH` setup that remote Neovim needs in a startup file that is loaded for non-interactive shells. For
+example, if `zsh` is your remote login shell and `fzf` is installed under `~/.fzf/bin`, put only the path setup in
+`~/.zshenv`:
+
+```sh
+export PATH="$HOME/.fzf/bin:$PATH"
+```
+
+Keep `fzf` shell integration, key bindings, and completion setup in `~/.zshrc`. Those parts are for interactive
+shell sessions; `remote-nvim` only needs the `fzf` executable to be visible to the remote headless Neovim process.
 
 ### Why would I use this plugin instead of the usual ssh + nvim?
 

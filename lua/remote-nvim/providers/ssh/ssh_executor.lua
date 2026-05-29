@@ -4,9 +4,9 @@ local utils = require("remote-nvim.utils")
 ---@class remote-nvim.providers.ssh.SSHExecutor: remote-nvim.providers.Executor
 ---@field super remote-nvim.providers.Executor
 ---@field ssh_conn_opts string Connection options for SSH command
----@field scp_connection_options string Connection options to SCP command
+---@field rsync_conn_opts string Connection options to rsync command
 ---@field ssh_binary string Binary to use for SSH operations
----@field scp_binary string Binary to use for SCP operations
+---@field rsync_binary string Binary to use for rsync operations
 ---@field private _ssh_prompts remote-nvim.config.PluginConfig.SSHConfig.SSHPrompt[] SSH prompts registered for processing for input
 ---@field private _job_stdout_processed_idx number Last index processed by output processor
 ---@field private _job_prompt_responses table<string,string> Responses for prompts provided by user during the job
@@ -19,11 +19,12 @@ function SSHExecutor:init(host, conn_opts)
   SSHExecutor.super.init(self, host, conn_opts)
 
   self.ssh_conn_opts = self.conn_opts
-  self.scp_conn_opts = self.conn_opts == "" and "-r" or self.conn_opts:gsub("%-p", "-P") .. " -r"
 
   local remote_neovim = require("remote-nvim")
   self.ssh_binary = remote_neovim.config.ssh_config.ssh_binary
-  self.scp_binary = remote_neovim.config.ssh_config.scp_binary
+  self.rsync_binary = remote_neovim.config.ssh_config.rsync_binary
+  self.rsync_conn_opts = self.conn_opts == "" and "-r"
+    or ("-r -e %s"):format(vim.fn.shellescape(("%s %s"):format(self.ssh_binary, self.ssh_conn_opts)))
   self._ssh_prompts = vim.deepcopy(remote_neovim.config.ssh_config.ssh_prompts)
 
   self._job_stdout_processed_idx = 0
@@ -60,7 +61,7 @@ function SSHExecutor:upload(localSrcPath, remoteDestPath, job_opts)
       ("tar xvzf - -C %s && chown -R $(whoami) %s"):format(remoteDestPath, remoteDestPath),
       job_opts
     )
-    local tar_command = ("tar czf - --no-xattrs %s %s --numeric-owner --no-acls --no-same-owner --no-same-permissions -C %s %s"):format(
+    local tar_command = ("tar czf - --no-xattrs --exclude .git %s %s --numeric-owner --no-acls --no-same-owner --no-same-permissions -C %s %s"):format(
       utils.os_name() == "macOS" and "--disable-copyfile" or "",
       table.concat(job_opts.compression.additional_opts or {}, " "),
       parent_dir,
@@ -70,9 +71,10 @@ function SSHExecutor:upload(localSrcPath, remoteDestPath, job_opts)
     return self:run_executor_job(command, job_opts)
   else
     local remotePath = ("%s:%s"):format(self.host, remoteDestPath)
-    local scp_command = ("%s %s %s %s"):format(self.scp_binary, self.scp_conn_opts, localSrcPath, remotePath)
+    local rsync_command =
+      ("%s %s --exclude .git %s %s"):format(self.rsync_binary, self.rsync_conn_opts, localSrcPath, remotePath)
 
-    return self:run_executor_job(scp_command, job_opts)
+    return self:run_executor_job(rsync_command, job_opts)
   end
 end
 
@@ -83,9 +85,9 @@ end
 function SSHExecutor:download(remoteSrcPath, localDescPath, job_opts)
   job_opts = job_opts or {}
   local remotePath = ("%s:%s"):format(self.host, remoteSrcPath)
-  local scp_command = ("%s %s %s %s"):format(self.scp_binary, self.scp_conn_opts, remotePath, localDescPath)
+  local rsync_command = ("%s %s %s %s"):format(self.rsync_binary, self.rsync_conn_opts, remotePath, localDescPath)
 
-  return self:run_executor_job(scp_command, job_opts)
+  return self:run_executor_job(rsync_command, job_opts)
 end
 
 ---@private

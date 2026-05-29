@@ -33,27 +33,27 @@ describe("SSH Executor", function()
     other_executor_run_job_stub = stub(other_executor, "run_executor_job")
   end)
 
-  describe("should correctly generate scp connection options", function()
+  describe("should correctly generate rsync connection options", function()
     it("and append recursive flag mandatorily", function()
-      assert.equals("-r", executor.scp_conn_opts)
+      assert.equals("-r", executor.rsync_conn_opts)
     end)
 
-    it("by correcting port option if passed", function()
-      assert.equals("-P 2310 -r", other_executor.scp_conn_opts)
+    it("by wrapping ssh connection options if passed", function()
+      assert.equals("-r -e 'ssh -p 2310'", other_executor.rsync_conn_opts)
     end)
   end)
 
   describe("should run upload job with correct arguments", function()
-    it("for default port SCP", function()
+    it("for default port rsync", function()
       executor:upload("local-path", "remote-path")
-      local scp_command = "scp -r local-path remote-host:remote-path"
-      assert.stub(executor_run_job_stub).was.called_with(executor, scp_command, { compression = {} })
+      local rsync_command = "rsync -r --exclude .git local-path remote-host:remote-path"
+      assert.stub(executor_run_job_stub).was.called_with(executor, rsync_command, { compression = {} })
     end)
 
-    it("for specified port SCP", function()
+    it("for specified port rsync", function()
       other_executor:upload("local-path", "remote-path")
-      local other_scp_command = "scp -P 2310 -r local-path remote-host:remote-path"
-      assert.stub(other_executor_run_job_stub).was.called_with(other_executor, other_scp_command, { compression = {} })
+      local other_rsync_command = "rsync -r -e 'ssh -p 2310' --exclude .git local-path remote-host:remote-path"
+      assert.stub(other_executor_run_job_stub).was.called_with(other_executor, other_rsync_command, { compression = {} })
     end)
 
     describe("when compression is turned on", function()
@@ -65,7 +65,7 @@ describe("SSH Executor", function()
           { compression = { enabled = true } }
         )
         local upload_command =
-          "tar czf - --no-xattrs --disable-copyfile  --numeric-owner --no-acls --no-same-owner --no-same-permissions -C local-dir first-path second-path third-path | ssh remote-host 'tar xvzf - -C remote-path && chown -R $(whoami) remote-path'"
+          "tar czf - --no-xattrs --exclude .git --disable-copyfile  --numeric-owner --no-acls --no-same-owner --no-same-permissions -C local-dir first-path second-path third-path | ssh remote-host 'tar xvzf - -C remote-path && chown -R $(whoami) remote-path'"
         assert
           .stub(executor_run_job_stub).was
           .called_with(executor, upload_command, { compression = { enabled = true } })
@@ -79,7 +79,7 @@ describe("SSH Executor", function()
           { compression = { enabled = true } }
         )
         local upload_command =
-          "tar czf - --no-xattrs   --numeric-owner --no-acls --no-same-owner --no-same-permissions -C local-dir first-path second-path third-path | ssh remote-host 'tar xvzf - -C remote-path && chown -R $(whoami) remote-path'"
+          "tar czf - --no-xattrs --exclude .git   --numeric-owner --no-acls --no-same-owner --no-same-permissions -C local-dir first-path second-path third-path | ssh remote-host 'tar xvzf - -C remote-path && chown -R $(whoami) remote-path'"
         assert
           .stub(executor_run_job_stub).was
           .called_with(executor, upload_command, { compression = { enabled = true } })
@@ -108,7 +108,7 @@ describe("SSH Executor", function()
           { compression = { enabled = true, additional_opts = { "--exclude-vcs" } } }
         )
         local upload_command =
-          "tar czf - --no-xattrs --disable-copyfile --exclude-vcs --numeric-owner --no-acls --no-same-owner --no-same-permissions -C local-dir first-path second-path third-path | ssh remote-host 'tar xvzf - -C remote-path && chown -R $(whoami) remote-path'"
+          "tar czf - --no-xattrs --exclude .git --disable-copyfile --exclude-vcs --numeric-owner --no-acls --no-same-owner --no-same-permissions -C local-dir first-path second-path third-path | ssh remote-host 'tar xvzf - -C remote-path && chown -R $(whoami) remote-path'"
         assert
           .stub(executor_run_job_stub).was
           .called_with(executor, upload_command, { compression = { enabled = true, additional_opts = { "--exclude-vcs" } } })
@@ -117,16 +117,16 @@ describe("SSH Executor", function()
   end)
 
   describe("should run download job with correct arguments", function()
-    it("for default port SCP", function()
+    it("for default port rsync", function()
       executor:download("remote-path", "local-path")
-      local scp_command = "scp -r remote-host:remote-path local-path"
-      assert.stub(executor_run_job_stub).was.called_with(executor, scp_command, {})
+      local rsync_command = "rsync -r remote-host:remote-path local-path"
+      assert.stub(executor_run_job_stub).was.called_with(executor, rsync_command, {})
     end)
 
-    it("for specified port SCP", function()
+    it("for specified port rsync", function()
       other_executor:download("remote-path", "local-path")
-      local other_scp_command = "scp -P 2310 -r remote-host:remote-path local-path"
-      assert.stub(other_executor_run_job_stub).was.called_with(other_executor, other_scp_command, {})
+      local other_rsync_command = "rsync -r -e 'ssh -p 2310' remote-host:remote-path local-path"
+      assert.stub(other_executor_run_job_stub).was.called_with(other_executor, other_rsync_command, {})
     end)
   end)
 

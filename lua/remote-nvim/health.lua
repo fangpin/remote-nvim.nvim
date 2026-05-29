@@ -37,6 +37,12 @@ function M.check()
       optional = false,
     },
     {
+      name = remote_nvim.config.ssh_config.rsync_binary,
+      version_cmd = ("%s --version"):format(remote_nvim.config.ssh_config.rsync_binary),
+      warn_message = "SSH copy functionalities will be broken",
+      optional = false,
+    },
+    {
       name = remote_nvim.config.devpod.binary,
       version_cmd = ("%s version"):format(remote_nvim.config.devpod.binary),
       warn_message = "Docker/Devcontainer functionalities will be broken",
