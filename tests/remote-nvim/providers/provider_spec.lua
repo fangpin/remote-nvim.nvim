@@ -650,7 +650,7 @@ describe("Provider", function()
 
     assert.stub(remote_pid_alive_stub).was.called_with(match.is_ref(provider), "4567")
     assert.stub(remote_port_alive_stub).was.called_with(match.is_ref(provider), "32123")
-    assert.stub(start_port_forward_stub).was.called_with(match.is_ref(provider.executor), 12345, "32123")
+    assert.stub(start_port_forward_stub).was.called_with(match.is_ref(provider.executor), 12345, "32123", match.is_table())
     assert.equals(99, provider._remote_server_process_id)
     assert.equals(12345, provider._local_free_port)
     assert.equals("32123", provider._remote_free_port)
@@ -679,6 +679,27 @@ describe("Provider", function()
     assert.stub(vim.notify).was.called_with(match.matches("already has a running local session"), vim.log.levels.WARN)
 
     is_remote_server_running_stub:revert()
+  end)
+
+  it("reattached forwarding uses the remote server exit handler", function()
+    local registry = require("remote-nvim.detached_registry")()
+    local detached_registry_stub = stub(provider, "_detached_registry").returns(registry)
+    stub(provider, "_remote_pid_alive").returns(true)
+    stub(provider, "_remote_port_alive").returns(true)
+    local local_free_port_stub = stub(require("remote-nvim.providers.utils"), "find_free_port").returns(12345)
+    local start_port_forward_stub = stub(provider.executor, "start_port_forward")
+    local last_job_id_stub = stub(provider.executor, "last_job_id").returns(99)
+    stub(provider, "_launch_local_neovim_client")
+    provider.provider_type = "ssh"
+
+    provider:reattach_neovim({ remote_pid = "4567", remote_port = "32123", status = "detached" })
+
+    local forward_opts = start_port_forward_stub.calls[1].refs[4]
+    assert.is_function(forward_opts.exit_cb)
+
+    detached_registry_stub:revert()
+    local_free_port_stub:revert()
+    last_job_id_stub:revert()
   end)
 
   it("removes the detached registry record after successful reattach", function()

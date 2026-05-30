@@ -449,7 +449,9 @@ function Provider:_handle_remote_server_exit(exit_code, node)
   end
   self:_refresh_runtime_diagnostics()
   local success_code = (exit_code == 0 or self._provider_stopped_neovim or reconnect_scheduled)
-  self.progress_viewer:update_status(success_code and "success" or "failed", true, node)
+  if node ~= nil then
+    self.progress_viewer:update_status(success_code and "success" or "failed", true, node)
+  end
   if not success_code then
     self:show_progress_view_window()
   end
@@ -1427,7 +1429,11 @@ function Provider:reattach_neovim(record)
   self._remote_free_port = record.remote_port
   self._remote_server_pid = record.remote_pid
   self._local_free_port = provider_utils.find_free_port()
-  self.executor:start_port_forward(self._local_free_port, self._remote_free_port)
+  self.executor:start_port_forward(self._local_free_port, self._remote_free_port, {
+    exit_cb = function(exit_code)
+      self:_handle_remote_server_exit(exit_code, nil)
+    end,
+  })
   self._remote_server_process_id = self.executor:last_job_id()
   self._detached_state = nil
   self:_refresh_runtime_diagnostics()
