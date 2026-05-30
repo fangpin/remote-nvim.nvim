@@ -317,15 +317,21 @@ function Provider:_add_session_info()
   add_remote_info("Workspace path  ", self._remote_workspace_id_path)
   add_remote_info("Working dir.    ", self._remote_working_dir)
 
-  if self.progress_viewer.set_session_section then
-    self.progress_viewer:set_session_section("Runtime diagnostics", "runtime_node", self:_runtime_diagnostics_entries())
-  end
+  self:_refresh_runtime_diagnostics()
 end
 
 ---Store clipboard diagnostics for runtime reporting.
 ---@param result table Clipboard diagnostics result
 function Provider:set_clipboard_diagnostics(result)
   self._last_clipboard_diagnostics = result
+  self:_refresh_runtime_diagnostics()
+end
+
+---@private
+function Provider:_refresh_runtime_diagnostics()
+  if self.progress_viewer.set_session_section then
+    self.progress_viewer:set_session_section("Runtime diagnostics", "runtime_node", self:_runtime_diagnostics_entries())
+  end
 end
 
 ---@private
@@ -388,6 +394,7 @@ function Provider:_schedule_reconnect(exit_code)
 
   self._remote_server_process_id = nil
   self._local_free_port = nil
+  self:_refresh_runtime_diagnostics()
   vim.notify(
     ("Remote Neovim disconnected with exit code %s. Reconnecting in %sms (attempt %s/%s)"):format(
       exit_code,
@@ -427,6 +434,7 @@ function Provider:_handle_remote_server_exit(exit_code, node)
   else
     self._last_reconnect_reason = "reconnect skipped"
   end
+  self:_refresh_runtime_diagnostics()
   local success_code = (exit_code == 0 or self._provider_stopped_neovim or reconnect_scheduled)
   self.progress_viewer:update_status(success_code and "success" or "failed", true, node)
   if not success_code then
@@ -1088,6 +1096,7 @@ function Provider:_launch_remote_neovim_server()
       vim.notify("Remote server stopped", vim.log.levels.INFO)
     end, "Launching Remote Neovim server")
     self._remote_server_process_id = self.executor:last_job_id()
+    self:_refresh_runtime_diagnostics()
     if self:is_remote_server_running() then
       self.progress_viewer:add_session_node({
         type = "info_node",

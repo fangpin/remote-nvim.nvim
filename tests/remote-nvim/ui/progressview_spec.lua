@@ -136,7 +136,16 @@ describe("Progress view should ensure that", function()
         end
       end
 
+      local runtime_values = {}
+      for _, node in pairs(session_tree.nodes.by_id) do
+        if node.type == "runtime_node" then
+          runtime_values[node.key] = node.value
+        end
+      end
+
       assert.are.equal(1, runtime_roots)
+      assert.are.equal("detached", runtime_values.State)
+      assert.are.equal("1234", runtime_values["Remote PID"])
     end)
 
     it("when there is a parent node", function()
