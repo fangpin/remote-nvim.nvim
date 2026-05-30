@@ -90,15 +90,29 @@ local utils = require("remote-nvim.utils")
 ---@field offline_mode remote-nvim.config.PluginConfig.OfflineModeConfig Offline mode configuration
 ---@field log remote-nvim.config.PluginConfig.LogConfig Plugin logging options
 
+local function get_neovide_channel_id()
+  if type(vim.g.neovide_channel_id) == "number" then
+    return vim.g.neovide_channel_id
+  end
+
+  for _, ui in ipairs(vim.api.nvim_list_uis()) do
+    if type(ui.chan) == "number" and ui.chan > 0 then
+      return ui.chan
+    end
+  end
+
+  return nil
+end
+
 local function build_neovide_clipboard()
-  if type(vim.g.neovide_channel_id) ~= "number" then
+  local channel_id = get_neovide_channel_id()
+  if not channel_id then
     return nil
   end
 
-  local channel_id = vim.g.neovide_channel_id
   local function copy(register)
-    return function(lines, regtype)
-      vim.rpcnotify(channel_id, "neovide.set_clipboard", lines, regtype, register)
+    return function(lines)
+      vim.rpcrequest(channel_id, "neovide.set_clipboard", lines, register)
     end
   end
 
