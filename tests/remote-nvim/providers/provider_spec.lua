@@ -586,6 +586,33 @@ describe("Provider", function()
     assert.is_true(provider._provider_stopped_neovim)
   end)
 
+  it("records last exit code and reconnect reason after remote server exits", function()
+    remote_nvim.config.remote.reconnect = { enabled = false, max_attempts = 0, backoff_ms = 100 }
+
+    provider:_handle_remote_server_exit(1, {})
+
+    assert.equals(1, provider._last_exit_code)
+    assert.equals("reconnect skipped", provider._last_reconnect_reason)
+  end)
+
+  it("adds runtime diagnostics to session info", function()
+    provider._local_free_port = 12345
+    provider._remote_free_port = "32123"
+    provider._remote_server_pid = "4567"
+    provider._remote_server_process_id = 99
+    provider._last_exit_code = 1
+    provider._last_reconnect_reason = "unexpected exit"
+
+    provider:_add_session_info()
+
+    assert.stub(progress_viewer.set_session_section).was.called_with(
+      match.is_ref(progress_viewer),
+      "Runtime diagnostics",
+      "runtime_node",
+      match.is_table()
+    )
+  end)
+
   describe("should handle reconnect correctly", function()
     local defer_fn_stub
 

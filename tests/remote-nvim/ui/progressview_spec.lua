@@ -120,6 +120,25 @@ describe("Progress view should ensure that", function()
       session_tree = progress_view.session_info_pane_tree
     end)
 
+    it("refreshes session section nodes without duplicating the section", function()
+      progress_view:set_session_section("Runtime diagnostics", "runtime_node", {
+        { key = "State", value = "active" },
+      })
+      progress_view:set_session_section("Runtime diagnostics", "runtime_node", {
+        { key = "State", value = "detached" },
+        { key = "Remote PID", value = "1234" },
+      })
+
+      local runtime_roots = 0
+      for _, node in pairs(session_tree.nodes.by_id) do
+        if node.value == "Runtime diagnostics" then
+          runtime_roots = runtime_roots + 1
+        end
+      end
+
+      assert.are.equal(1, runtime_roots)
+    end)
+
     it("when there is a parent node", function()
       ---@type NuiTree.Node
       local config_holder_node

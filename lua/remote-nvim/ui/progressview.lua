@@ -270,6 +270,41 @@ function ProgressView:add_session_node(session_info_node)
   return node
 end
 
+---Refresh a session info section with new entries.
+---@param title string Section title
+---@param holds session_node_type Child node type held by the section
+---@param entries { key: string, value: any }[] Entries to render under the section
+function ProgressView:set_session_section(title, holds, entries)
+  local section_node
+  for _, node in pairs(self.session_info_pane_tree.nodes.by_id) do
+    if node.type == "root_node" and node.value == title then
+      section_node = node
+      break
+    end
+  end
+
+  if not section_node then
+    section_node = self:add_session_node({
+      value = title,
+      holds = holds,
+      type = "root_node",
+    })
+  end
+
+  self.session_info_pane_tree:set_nodes({}, section_node:get_id())
+  section_node.last_child_id = nil
+
+  for _, entry in ipairs(entries) do
+    self:add_session_node({
+      type = holds,
+      key = entry.key,
+      value = entry.value,
+    })
+  end
+
+  self.session_info_pane_tree:render(self.session_info_tree_render_linenr)
+end
+
 ---Start progress view with a new run
 ---@param title string Title for the run
 ---@return NuiTree.Node run_node Created run node

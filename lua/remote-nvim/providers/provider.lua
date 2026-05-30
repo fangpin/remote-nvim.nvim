@@ -37,6 +37,12 @@
 ---@field private _cleanup_run_number number Active run number
 ---@field private _reconnect_attempt number Number of attempted reconnects for the current disconnection
 ---@field private _local_free_port string? Free port available on local machine
+---@field private _remote_free_port string? Free port available on remote machine
+---@field private _remote_server_pid string? Remote Neovim server PID
+---@field private _detached_state string? Detached session state
+---@field private _last_exit_code number? Last remote server exit code
+---@field private _last_reconnect_reason string? Last reconnect decision reason
+---@field private _last_clipboard_diagnostics table? Last clipboard diagnostics result
 ---@field private _local_neovim_install_script_path string Local path where Neovim installation script is stored
 ---@field private _local_path_to_remote_neovim_config string[] Local path(s) containing remote Neovim configuration
 ---@field private _local_path_copy_dirs table<string, string[]> Local path(s) containing remote Neovim configuration
@@ -310,6 +316,34 @@ function Provider:_add_session_info()
   add_remote_info("Connection opts ", (self.conn_opts == "" and "<no-extra-options>" or self.conn_opts))
   add_remote_info("Workspace path  ", self._remote_workspace_id_path)
   add_remote_info("Working dir.    ", self._remote_working_dir)
+
+  if self.progress_viewer.set_session_section then
+    self.progress_viewer:set_session_section("Runtime diagnostics", "runtime_node", self:_runtime_diagnostics_entries())
+  end
+end
+
+---Store clipboard diagnostics for runtime reporting.
+---@param result table Clipboard diagnostics result
+function Provider:set_clipboard_diagnostics(result)
+  self._last_clipboard_diagnostics = result
+end
+
+---@private
+---@return { key: string, value: any }[] entries Runtime diagnostics entries
+function Provider:_runtime_diagnostics_entries()
+  local reconnect = remote_nvim.config.remote.reconnect or {}
+  return {
+    { key = "State", value = self._detached_state or (self:is_remote_server_running() and "active" or "stopped") },
+    { key = "Local job ID", value = self._remote_server_process_id },
+    { key = "Local port", value = self._local_free_port },
+    { key = "Remote port", value = self._remote_free_port },
+    { key = "Remote PID", value = self._remote_server_pid },
+    { key = "Reconnect", value = reconnect.enabled and "enabled" or "disabled" },
+    { key = "Reconnect attempt", value = ("%s/%s"):format(self._reconnect_attempt or 0, reconnect.max_attempts or 0) },
+    { key = "Last exit code", value = self._last_exit_code },
+    { key = "Last reconnect reason", value = self._last_reconnect_reason },
+    { key = "Clipboard", value = self._last_clipboard_diagnostics and "checked" or "not checked yet" },
+  }
 end
 
 ---@private
@@ -318,6 +352,12 @@ function Provider:_reset()
   self._setup_running = false
   self._remote_server_process_id = nil
   self._local_free_port = nil
+  self._remote_free_port = nil
+  self._remote_server_pid = nil
+  self._detached_state = nil
+  self._last_exit_code = nil
+  self._last_reconnect_reason = nil
+  self._last_clipboard_diagnostics = nil
   self._provider_stopped_neovim = false
 end
 
@@ -376,7 +416,17 @@ end
 ---@param exit_code number Exit code from the remote server job
 ---@param node NuiTree.Node Progress node for the launch command
 function Provider:_handle_remote_server_exit(exit_code, node)
+  self._last_exit_code = exit_code
   local reconnect_scheduled = self:_schedule_reconnect(exit_code)
+  if reconnect_scheduled then
+    self._last_reconnect_reason = "unexpected exit"
+  elseif exit_code == 0 then
+    self._last_reconnect_reason = "clean exit"
+  elseif self._provider_stopped_neovim then
+    self._last_reconnect_reason = "stopped by provider"
+  else
+    self._last_reconnect_reason = "reconnect skipped"
+  end
   local success_code = (exit_code == 0 or self._provider_stopped_neovim or reconnect_scheduled)
   self.progress_viewer:update_status(success_code and "success" or "failed", true, node)
   if not success_code then
@@ -388,7 +438,11 @@ function Provider:_handle_remote_server_exit(exit_code, node)
   end
 
   if not reconnect_scheduled then
+    local last_exit_code = self._last_exit_code
+    local last_reconnect_reason = self._last_reconnect_reason
     self:_reset()
+    self._last_exit_code = last_exit_code
+    self._last_reconnect_reason = last_reconnect_reason
   end
 end
 
@@ -984,6 +1038,7 @@ function Provider:_launch_remote_neovim_server()
     self:run_command(free_port_on_remote_cmd, "Searching for free port on the remote machine")
     local remote_free_port_output = self.executor:job_stdout()
     local remote_free_port = remote_free_port_output[#remote_free_port_output]
+    self._remote_free_port = remote_free_port
     self.logger.fmt_debug("[%s][%s] Remote free port: %s", self.provider_type, self.unique_host_id, remote_free_port)
 
     self._local_free_port = provider_utils.find_free_port()
