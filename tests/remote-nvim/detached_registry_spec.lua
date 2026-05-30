@@ -52,6 +52,19 @@ describe("DetachedRegistry", function()
     assert.equals("detached", registry:get("host-a").status)
   end)
 
+  it("preserves records written by another registry instance", function()
+    local first_registry = registry
+    load_registry()
+    local second_registry = registry
+
+    first_registry:upsert("host-a", { provider = "ssh", host = "host-a", status = "detached" })
+    second_registry:upsert("host-b", { provider = "ssh", host = "host-b", status = "detached" })
+    load_registry()
+
+    assert.equals("detached", registry:get("host-a").status)
+    assert.equals("detached", registry:get("host-b").status)
+  end)
+
   it("falls back to an empty registry when the file is corrupt", function()
     vim.fn.writefile({ "not json" }, tmpdir .. "/remote-nvim/detached.json")
     load_registry()

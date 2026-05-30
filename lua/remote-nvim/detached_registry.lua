@@ -9,14 +9,17 @@ function DetachedRegistry:init()
   self._path = Path:new({ vim.fn.stdpath("data"), "remote-nvim", "detached.json" })
   self._path:touch({ mode = 493, parents = true })
 
+  self._data = self:_load()
+end
+
+function DetachedRegistry:_load()
   local raw = self._path:read()
   if raw == "" then
-    self._data = {}
-    return
+    return {}
   end
 
   local ok, decoded = pcall(vim.json.decode, raw)
-  self._data = ok and type(decoded) == "table" and decoded or {}
+  return ok and type(decoded) == "table" and decoded or {}
 end
 
 function DetachedRegistry:_write()
@@ -32,6 +35,7 @@ function DetachedRegistry:get(host_id)
 end
 
 function DetachedRegistry:upsert(host_id, record)
+  self._data = self:_load()
   self._data[host_id] = vim.tbl_extend("force", self:get(host_id), record)
   self:_write()
   return self._data[host_id]
@@ -42,6 +46,7 @@ function DetachedRegistry:mark_stale(host_id)
 end
 
 function DetachedRegistry:remove(host_id)
+  self._data = self:_load()
   self._data[host_id] = nil
   self:_write()
 end
