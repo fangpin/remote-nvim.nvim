@@ -5,13 +5,6 @@ and [devcontainers](https://code.visualstudio.com/docs/devcontainers/containers)
 to Neovim (just like VSCode). Read in the [FAQ](#faq) at the end of this document why you would prefer
 using remote-nvim instead of SSH into remote + local neovim.
 
-> [!WARNING]
-> This plugin has not yet reached maturity. So, breaking changes are expected. Any such change would be
-> communicated through [this GitHub discussion](https://github.com/amitds1997/remote-nvim.nvim/discussions/78).
->
-> The author appreciates if you can drop by and suggest any changes you would like to see in the plugin
-> to improve it further.
-
 ## ✨ Features
 
 | Remote mode                   | Current support     |
@@ -22,12 +15,6 @@ using remote-nvim instead of SSH into remote + local neovim.
 | Docker image [^1]             | _Fully supported_ ✅ |
 | Docker container [^1]         | _Fully supported_ ✅ |
 | Devcontainer [^1]             | _Fully supported_ ✅ |
-
-See [Demos](#-demos) for how to work with your particular use case.
-
-[Remote Tunnels](https://code.visualstudio.com/docs/remote/tunnels)
-is a Microsoft-specific features and will not be supported. If
-you have an alternative though, I would be happy to integrate it into the plugin.
 
 ### Implemented features
 
@@ -66,8 +53,7 @@ features.
   - `curl`
   - `rsync`
   - `tar` (optional; if you use compressed uploads)
-  - [`devpod`](https://devpod.sh/docs/getting-started/install#optional-install-devpod-cli) >= 0.5.0 (optional;
-  if you want to use devcontainer)
+  - [`devpod`](https://devpod.sh/docs/getting-started/install#optional-install-devpod-cli) >= 0.5.0 (optional; if you want to use devcontainer)
 - Connectivity to [neovim repo](https://github.com/neovim/neovim) on GitHub
 
 Connectivity to [neovim repo](https://github.com/neovim/neovim) on GitHub is not needed when using
@@ -93,7 +79,7 @@ Using [lazy.nvim](https://github.com/folke/lazy.nvim)
 
 ```lua
 {
-   "amitds1997/remote-nvim.nvim",
+   "fangpin/remote-nvim.nvim",
    version = "*", -- Pin to GitHub releases
    dependencies = {
        "nvim-lua/plenary.nvim", -- For standard functions
@@ -241,7 +227,8 @@ Please read the associated comments before changing the value.
     },
   },
 
-  -- You can supply your own callback that should be called to create the local client. This is the default implementation.
+  -- You can supply your own callback that should be called to create the local client. The default implementation
+  -- starts Neovide when remote-nvim itself is running inside Neovide and falls back to `nvim --remote-ui` otherwise.
   -- Two arguments are passed to the callback:
   -- port: Local port at which the remote server is available
   -- workspace_config: Workspace configuration for the host. For all the properties available, see https://github.com/amitds1997/remote-nvim.nvim/blob/main/lua/remote-nvim/providers/provider.lua#L4
@@ -450,6 +437,15 @@ require("remote-nvim").setup({
 This is a best-effort reconnect: the plugin relaunches the workspace and local client. It does not yet keep the remote
 Neovim server alive independently from the SSH tunnel.
 
+### Neovide client and clipboard
+
+When `:RemoteStart` is run from Neovide and the `neovide` binary is available on the local machine, `remote-nvim`
+automatically opens the remote UI in a Neovide window instead of nesting `nvim --remote-ui` in a terminal. The remote
+server also installs a small startup hook so Neovide's remote clipboard provider can take over after the UI attaches.
+
+If you override `client_callback`, keep this behavior in mind: starting `nvim --remote-ui` from inside Neovide creates a
+terminal UI client, so Neovide's local clipboard bridge will not be used by that remote session.
+
 ## 🥨 Integration with statusline
 
 The plugin sets the variable `vim.g.remote_neovim_host` to `true` on the remote Neovim instance. This can be used to add
@@ -635,7 +631,7 @@ This plugins provide some additional nice-to have features on top:
 - Can copy over your local Neovim configuration to remote
 - Allows easy re-connection to past sessions
 - Makes it easy to clean up remote machine changes once you are done
-- It launches Neovim server on the remote server and connects a UI to it locally. 
+- It launches Neovim server on the remote server and connects a UI to it locally.
 
 You can read more in [this Neovim discussion](https://github.com/amitds1997/remote-nvim.nvim/discussions/145)
 

@@ -945,6 +945,7 @@ describe("Provider", function()
       end)
 
       it("with no set working directory", function()
+        local neovide_clipboard_setup_cmd = vim.fn.shellescape(provider:_get_neovide_clipboard_setup_cmd())
         provider:_launch_remote_neovim_server()
         assert.stub(run_command_stub).was.called_with(
           match.is_ref(provider),
@@ -954,7 +955,8 @@ describe("Provider", function()
         assert.stub(local_free_port_stub).was.called()
         assert.stub(run_command_stub).was.called_with(
           match.is_ref(provider),
-          "XDG_CONFIG_HOME=~/.remote-nvim/workspaces/ajfdalfj/.config XDG_DATA_HOME=~/.remote-nvim/workspaces/ajfdalfj/.local/share XDG_STATE_HOME=~/.remote-nvim/workspaces/ajfdalfj/.local/state XDG_CACHE_HOME=~/.remote-nvim/workspaces/ajfdalfj/.cache NVIM_APPNAME=nvim ~/.remote-nvim/nvim-downloads/stable/bin/nvim --listen 0.0.0.0:32123 --headless",
+          "XDG_CONFIG_HOME=~/.remote-nvim/workspaces/ajfdalfj/.config XDG_DATA_HOME=~/.remote-nvim/workspaces/ajfdalfj/.local/share XDG_STATE_HOME=~/.remote-nvim/workspaces/ajfdalfj/.local/state XDG_CACHE_HOME=~/.remote-nvim/workspaces/ajfdalfj/.cache NVIM_APPNAME=nvim ~/.remote-nvim/nvim-downloads/stable/bin/nvim --listen 0.0.0.0:32123 --headless --cmd "
+            .. neovide_clipboard_setup_cmd,
           match.is_string(),
           "-t -L 52232:localhost:32123",
           match.is_function()
@@ -962,6 +964,7 @@ describe("Provider", function()
       end)
 
       it("when a working directory is set", function()
+        local neovide_clipboard_setup_cmd = vim.fn.shellescape(provider:_get_neovide_clipboard_setup_cmd())
         provider._remote_working_dir = "/home/test-user"
         provider:_launch_remote_neovim_server()
         assert.stub(run_command_stub).was.called_with(
@@ -972,7 +975,9 @@ describe("Provider", function()
         assert.stub(local_free_port_stub).was.called()
         assert.stub(run_command_stub).was.called_with(
           match.is_ref(provider),
-          "XDG_CONFIG_HOME=~/.remote-nvim/workspaces/ajfdalfj/.config XDG_DATA_HOME=~/.remote-nvim/workspaces/ajfdalfj/.local/share XDG_STATE_HOME=~/.remote-nvim/workspaces/ajfdalfj/.local/state XDG_CACHE_HOME=~/.remote-nvim/workspaces/ajfdalfj/.cache NVIM_APPNAME=nvim ~/.remote-nvim/nvim-downloads/stable/bin/nvim --listen 0.0.0.0:32123 --headless --cmd 'cd /home/test-user'",
+          "XDG_CONFIG_HOME=~/.remote-nvim/workspaces/ajfdalfj/.config XDG_DATA_HOME=~/.remote-nvim/workspaces/ajfdalfj/.local/share XDG_STATE_HOME=~/.remote-nvim/workspaces/ajfdalfj/.local/state XDG_CACHE_HOME=~/.remote-nvim/workspaces/ajfdalfj/.cache NVIM_APPNAME=nvim ~/.remote-nvim/nvim-downloads/stable/bin/nvim --listen 0.0.0.0:32123 --headless --cmd "
+            .. neovide_clipboard_setup_cmd
+            .. " --cmd 'cd /home/test-user'",
           match.is_string(),
           "-t -L 52232:localhost:32123",
           match.is_function()
@@ -980,11 +985,13 @@ describe("Provider", function()
       end)
 
       it("when an empty working directory is set", function()
+        local neovide_clipboard_setup_cmd = vim.fn.shellescape(provider:_get_neovide_clipboard_setup_cmd())
         provider._remote_working_dir = ""
         provider:_launch_remote_neovim_server()
         assert.stub(run_command_stub).was.called_with(
           match.is_ref(provider),
-          "XDG_CONFIG_HOME=~/.remote-nvim/workspaces/ajfdalfj/.config XDG_DATA_HOME=~/.remote-nvim/workspaces/ajfdalfj/.local/share XDG_STATE_HOME=~/.remote-nvim/workspaces/ajfdalfj/.local/state XDG_CACHE_HOME=~/.remote-nvim/workspaces/ajfdalfj/.cache NVIM_APPNAME=nvim ~/.remote-nvim/nvim-downloads/stable/bin/nvim --listen 0.0.0.0:32123 --headless",
+          "XDG_CONFIG_HOME=~/.remote-nvim/workspaces/ajfdalfj/.config XDG_DATA_HOME=~/.remote-nvim/workspaces/ajfdalfj/.local/share XDG_STATE_HOME=~/.remote-nvim/workspaces/ajfdalfj/.local/state XDG_CACHE_HOME=~/.remote-nvim/workspaces/ajfdalfj/.cache NVIM_APPNAME=nvim ~/.remote-nvim/nvim-downloads/stable/bin/nvim --listen 0.0.0.0:32123 --headless --cmd "
+            .. neovide_clipboard_setup_cmd,
           match.is_string(),
           "-t -L 52232:localhost:32123",
           match.is_function()

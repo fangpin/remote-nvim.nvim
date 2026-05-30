@@ -90,6 +90,27 @@ local utils = require("remote-nvim.utils")
 ---@field offline_mode remote-nvim.config.PluginConfig.OfflineModeConfig Offline mode configuration
 ---@field log remote-nvim.config.PluginConfig.LogConfig Plugin logging options
 
+local function launch_terminal_client(port)
+  require("remote-nvim.ui").float_term(("nvim --server localhost:%s --remote-ui"):format(port), function(exit_code)
+    if exit_code ~= 0 then
+      vim.notify(("Local client failed with exit code %s"):format(exit_code), vim.log.levels.ERROR)
+    end
+  end)
+end
+
+local function try_launch_neovide_client(port)
+  if vim.g.neovide ~= true or vim.fn.executable("neovide") ~= 1 then
+    return false
+  end
+
+  local ok, job_id = pcall(vim.fn.jobstart, {
+    "neovide",
+    ("--server=localhost:%s"):format(port),
+  }, { detach = true })
+
+  return ok and type(job_id) == "number" and job_id > 0
+end
+
 M.default_opts = {
   devpod = {
     binary = "devpod",
@@ -187,11 +208,11 @@ M.default_opts = {
     },
   },
   client_callback = function(port, _)
-    require("remote-nvim.ui").float_term(("nvim --server localhost:%s --remote-ui"):format(port), function(exit_code)
-      if exit_code ~= 0 then
-        vim.notify(("Local client failed with exit code %s"):format(exit_code), vim.log.levels.ERROR)
-      end
-    end)
+    if try_launch_neovide_client(port) then
+      return
+    end
+
+    launch_terminal_client(port)
   end,
   neovim_install_script_path = utils.path_join(
     utils.is_windows,
