@@ -425,6 +425,10 @@ AVAILABLE COMMANDS                            *remote-nvim-available-commands*
   :RemoteLog         Open the plugin log file. This is most useful when debugging.
                      :RemoteInfo should surface all information needed. If not, open
                      an issue.
+
+  :RemoteClipboardCheck
+                     Diagnose clipboard setup for an active remote session, including
+                     OSC 52 availability, provider state, and attached UI count.
   ----------------------------------------------------------------------------------
 For demos about the commands, see the |remote-nvim-demos| section.
 
@@ -476,7 +480,10 @@ copy-only OSC 52 clipboard provider for terminal UI clients. This means yanking
 with `yy`, visual mode `y`, or any operation that writes to the `+` register can
 update the local clipboard without requiring clipboard tools on the remote host.
 Paste falls back to the most recent cached yank instead of querying the terminal
-clipboard, since many terminals do not support OSC 52 reads.
+clipboard, since many terminals do not support OSC 52 reads. The startup hook
+runs during startup and UI attach, then retries a few times so delayed user
+configuration and lazy-loaded plugins do not accidentally leave the remote server
+without the OSC 52 provider.
 
 When the default client is launched from Neovide, `remote-nvim` also reloads the
 local Neovide clipboard provider before opening the nested terminal UI. This
@@ -485,6 +492,37 @@ Neovide’s system clipboard bridge.
 
 If you override `client_callback` to launch a GUI client such as Neovide, the
 startup hook preserves Neovide’s clipboard provider when it is available.
+
+CLIPBOARD TROUBLESHOOTING ~
+
+After connecting to a remote session, run `:RemoteClipboardCheck`. If multiple
+sessions are active, choose one from the picker or pass the host ID directly:
+
+>vim
+    :RemoteClipboardCheck my-host
+<
+
+A healthy terminal-client setup should report:
+
+- `clipboard option` includes `unnamedplus`
+- `clipboard provider` is `remote-nvim OSC 52` or a preserved Neovide provider
+- `osc52 available` is `true`
+- `copy +/*` reports `function/function`
+- `attached UIs` is at least `1`
+
+To verify manually, yank text in the remote UI with `yy` or `"+y`. The text
+should appear in your local system clipboard. If diagnostics look healthy but
+the clipboard does not update, check whether your terminal or terminal
+multiplexer allows OSC 52 clipboard writes. In tmux, for example, enable
+clipboard forwarding with:
+
+>tmux
+    set -g set-clipboard on
+<
+
+If `:RemoteClipboardCheck` reports missing copy functions, missing OSC 52
+support, or no attached UIs, restart the remote session so the startup hook can
+run again and check `:RemoteLog` for setup errors.
 
 
 FASTER REPEATED STARTUP ~

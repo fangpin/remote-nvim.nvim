@@ -402,8 +402,9 @@ remote-nvim.nvim")
 | `:RemoteStop`      | Stop running Neovim server and close session                                                                                                                |
 | `:RemoteInfo`      | Get information about any sessions created in the current Neovim run. Opens up the Progress Viewer.                                                         |
 | `:RemoteCleanup`   | Delete workspace and/or entire remote neovim setup from the remote instance. Also, cleanups the configuration for the remote resource.                      |
-| `:RemoteConfigDel` | Delete record of remote instance that no longer exists from saved session records. Prefer `:RemoteCleanup` if you can still connect to the remote instance. |
-| `:RemoteLog`       | Open the plugin log file. This is most useful when debugging. `:RemoteInfo` should surface all information needed. If not, open an issue.                   |
+| `:RemoteConfigDel`     | Delete record of remote instance that no longer exists from saved session records. Prefer `:RemoteCleanup` if you can still connect to the remote instance. |
+| `:RemoteLog`           | Open the plugin log file. This is most useful when debugging. `:RemoteInfo` should surface all information needed. If not, open an issue.                   |
+| `:RemoteClipboardCheck` | Diagnose clipboard setup for an active remote session, including OSC 52 availability, provider state, and attached UI count.                              |
 
 For demos about the commands, see the [demos](#-demos) section.
 
@@ -445,7 +446,9 @@ behavior for scrolling, fonts, and rendering while still allowing remote yanks t
 To make that work, the remote server installs a small startup hook that uses a copy-only OSC 52 clipboard provider for
 terminal UI clients. This means yanking with `yy`, visual mode `y`, or any operation that writes to the `+` register can
 update the local clipboard without requiring clipboard tools on the remote host. Paste falls back to the most recent
-cached yank instead of querying the terminal clipboard, since many terminals do not support OSC 52 reads.
+cached yank instead of querying the terminal clipboard, since many terminals do not support OSC 52 reads. The startup hook
+runs during startup and UI attach, then retries a few times so delayed user configuration and lazy-loaded plugins do not
+accidentally leave the remote server without the OSC 52 provider.
 
 When the default client is launched from Neovide, `remote-nvim` also reloads the local Neovide clipboard provider before
 opening the nested terminal UI. This lets OSC 52 writes from the remote UI flow through the local terminal buffer into
@@ -453,6 +456,34 @@ Neovide's system clipboard bridge.
 
 If you override `client_callback` to launch a GUI client such as Neovide, the startup hook preserves Neovide's clipboard
 provider when it is available.
+
+#### Clipboard troubleshooting
+
+After connecting to a remote session, run `:RemoteClipboardCheck`. If multiple sessions are active, choose one from the
+picker or pass the host ID directly:
+
+```vim
+:RemoteClipboardCheck my-host
+```
+
+A healthy terminal-client setup should report:
+
+- `clipboard option` includes `unnamedplus`
+- `clipboard provider` is `remote-nvim OSC 52` or a preserved Neovide provider
+- `osc52 available` is `true`
+- `copy +/*` reports `function/function`
+- `attached UIs` is at least `1`
+
+To verify manually, yank text in the remote UI with `yy` or `"+y`. The text should appear in your local system clipboard.
+If diagnostics look healthy but the clipboard does not update, check whether your terminal or terminal multiplexer allows
+OSC 52 clipboard writes. In tmux, for example, enable clipboard forwarding with:
+
+```tmux
+set -g set-clipboard on
+```
+
+If `:RemoteClipboardCheck` reports missing copy functions, missing OSC 52 support, or no attached UIs, restart the remote
+session so the startup hook can run again and check `:RemoteLog` for setup errors.
 
 ### Faster repeated startup
 

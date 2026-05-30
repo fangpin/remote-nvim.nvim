@@ -157,8 +157,7 @@ vim.api.nvim_create_user_command("RemoteCleanup", M.RemoteCleanup, {
   end,
 })
 
-vim.api.nvim_create_user_command("RemoteStop", function(opts)
-  local host_ids = vim.split(vim.trim(opts.args), "%s+")
+local function get_running_sessions()
   local sessions = remote_nvim.session_provider:get_all_sessions()
   local running_sessions = {}
   for host_id, session in pairs(sessions) do
@@ -166,6 +165,35 @@ vim.api.nvim_create_user_command("RemoteStop", function(opts)
       table.insert(running_sessions, host_id)
     end
   end
+  table.sort(running_sessions)
+
+  return sessions, running_sessions
+end
+
+local function complete_running_sessions(_, line)
+  local args = vim.split(vim.trim(line), "%s+")
+  table.remove(args, 1)
+
+  local _, running_sessions = get_running_sessions()
+
+  if #args == 0 then
+    return running_sessions
+  end
+  local host_ids = vim.fn.filter(running_sessions, function(_, item)
+    return not vim.tbl_contains(args, item)
+  end)
+  local completion_word = table.remove(args, #args)
+
+  -- If we have not provided any input, then the last word is the last completion
+  if vim.tbl_contains(running_sessions, completion_word) then
+    return host_ids
+  end
+  return vim.fn.matchfuzzy(running_sessions, completion_word)
+end
+
+vim.api.nvim_create_user_command("RemoteStop", function(opts)
+  local host_ids = vim.split(vim.trim(opts.args), "%s+")
+  local sessions, running_sessions = get_running_sessions()
 
   if #host_ids == 1 and vim.trim(host_ids[1]) ~= "" then
     local session = sessions[host_ids[1]]
@@ -195,33 +223,173 @@ vim.api.nvim_create_user_command("RemoteStop", function(opts)
 end, {
   desc = "Stop running Remote Neovim launched Neovim server",
   nargs = "?",
-  complete = function(_, line)
-    local args = vim.split(vim.trim(line), "%s+")
-    table.remove(args, 1)
+  complete = complete_running_sessions,
+})
 
-    -- Filter out those sessions whose port forwarding jobs are not running
-    local running_sessions = {}
-    local sessions = remote_nvim.session_provider:get_all_sessions()
-    for host_id, session in pairs(sessions) do
-      if session:is_remote_server_running() then
-        table.insert(running_sessions, host_id)
+local remote_clipboard_check_lua = [=[
+local clipboard = vim.g.clipboard
+local clipboard_type = type(clipboard)
+local clipboard_name = nil
+local copy_plus = nil
+local copy_star = nil
+local paste_plus = nil
+local paste_star = nil
+if clipboard_type == "table" then
+  clipboard_name = clipboard.name
+  copy_plus = type(clipboard.copy) == "table" and type(clipboard.copy["+"]) or nil
+  copy_star = type(clipboard.copy) == "table" and type(clipboard.copy["*"]) or nil
+  paste_plus = type(clipboard.paste) == "table" and type(clipboard.paste["+"]) or nil
+  paste_star = type(clipboard.paste) == "table" and type(clipboard.paste["*"]) or nil
+end
+
+local osc52_available = pcall(require, "vim.ui.clipboard.osc52")
+local remote_clipboard = vim.g.remote_nvim_clipboard
+return {
+  clipboard_option = tostring(vim.o.clipboard),
+  clipboard_type = clipboard_type,
+  clipboard_name = clipboard_name,
+  copy_plus = copy_plus,
+  copy_star = copy_star,
+  paste_plus = paste_plus,
+  paste_star = paste_star,
+  osc52_available = osc52_available,
+  loaded_clipboard_provider = vim.g.loaded_clipboard_provider,
+  remote_nvim_clipboard = remote_clipboard,
+  ui_count = #vim.api.nvim_list_uis(),
+}
+]=]
+
+local function is_missing(value)
+  return value == nil or value == vim.NIL or value == false or value == "nil"
+end
+
+local function format_value(value)
+  if value == nil or value == vim.NIL then
+    return "nil"
+  end
+  if type(value) == "boolean" then
+    return value and "true" or "false"
+  end
+  return tostring(value)
+end
+
+local function format_remote_clipboard(value)
+  if type(value) ~= "table" then
+    return format_value(value)
+  end
+
+  local parts = {}
+  for _, key in ipairs({ "installed", "provider", "name", "source", "install_count", "last_error" }) do
+    if value[key] ~= nil and value[key] ~= vim.NIL then
+      table.insert(parts, ("%s=%s"):format(key, format_value(value[key])))
+    end
+  end
+  return table.concat(parts, ", ")
+end
+
+local function clipboard_option_has_unnamedplus(value)
+  return vim.tbl_contains(vim.split(tostring(value or ""), ",", { trimempty = true }), "unnamedplus")
+end
+
+local function clipboard_diagnostics_missing(result)
+  return not clipboard_option_has_unnamedplus(result.clipboard_option)
+    or result.clipboard_type ~= "table"
+    or is_missing(result.clipboard_name)
+    or result.copy_plus ~= "function"
+    or result.copy_star ~= "function"
+    or result.paste_plus ~= "function"
+    or result.paste_star ~= "function"
+    or result.osc52_available ~= true
+    or type(result.remote_nvim_clipboard) ~= "table"
+    or result.remote_nvim_clipboard.installed ~= true
+end
+
+local function notify_clipboard_diagnostics(host_id, result)
+  local lines = {
+    ("Remote clipboard diagnostics for %s"):format(host_id),
+    ("clipboard option: %s"):format(format_value(result.clipboard_option)),
+    ("clipboard provider: %s (%s)"):format(format_value(result.clipboard_name), format_value(result.clipboard_type)),
+    ("copy +/*: %s/%s"):format(format_value(result.copy_plus), format_value(result.copy_star)),
+    ("paste +/*: %s/%s"):format(format_value(result.paste_plus), format_value(result.paste_star)),
+    ("osc52 available: %s"):format(format_value(result.osc52_available)),
+    ("loaded clipboard provider: %s"):format(format_value(result.loaded_clipboard_provider)),
+    ("remote-nvim clipboard: %s"):format(format_remote_clipboard(result.remote_nvim_clipboard)),
+    ("attached UIs: %s"):format(format_value(result.ui_count)),
+  }
+
+  local level = clipboard_diagnostics_missing(result) and vim.log.levels.WARN or vim.log.levels.INFO
+  vim.notify(table.concat(lines, "\n"), level)
+end
+
+local function check_clipboard_for_session(host_id, session)
+  local port = session:get_local_neovim_server_port()
+  if is_missing(port) or tostring(port) == "" then
+    vim.notify(("No local Neovim server port found for '%s'"):format(host_id), vim.log.levels.ERROR)
+    return
+  end
+
+  local ok_connect, chan = pcall(vim.fn.sockconnect, "tcp", ("localhost:%s"):format(port), { rpc = true })
+  if not ok_connect or is_missing(chan) or chan == 0 then
+    vim.notify(
+      ("Failed to connect to remote Neovim server for '%s': %s"):format(host_id, format_value(chan)),
+      vim.log.levels.ERROR
+    )
+    return
+  end
+
+  local ok_rpc, result = pcall(vim.rpcrequest, chan, "nvim_exec_lua", remote_clipboard_check_lua, {})
+  pcall(vim.fn.chanclose, chan)
+
+  if not ok_rpc then
+    vim.notify(
+      ("Failed to query remote clipboard diagnostics for '%s': %s"):format(host_id, format_value(result)),
+      vim.log.levels.ERROR
+    )
+    return
+  end
+
+  notify_clipboard_diagnostics(host_id, result)
+end
+
+function M.RemoteClipboardCheck(opts)
+  local host_ids = vim.split(vim.trim(opts.args), "%s+")
+  local sessions, running_sessions = get_running_sessions()
+
+  if #host_ids == 1 and vim.trim(host_ids[1]) ~= "" then
+    local host_id = host_ids[1]
+    local session = sessions[host_id]
+
+    if session == nil or not session:is_remote_server_running() then
+      vim.notify(("No active remote session to '%s' found"):format(host_id), vim.log.levels.WARN)
+    else
+      check_clipboard_for_session(host_id, session)
+    end
+  elseif #host_ids > 1 then
+    vim.notify("Please pass only one host at a time", vim.log.levels.WARN)
+    return
+  elseif (#vim.tbl_keys(sessions) == 0) or #running_sessions == 0 then
+    vim.notify("No active sessions found. Please start remote session(s) with :RemoteStart first", vim.log.levels.WARN)
+    return
+  elseif #running_sessions == 1 then
+    local host_id = running_sessions[1]
+    check_clipboard_for_session(host_id, sessions[host_id])
+  else
+    vim.ui.select(running_sessions, {
+      prompt = "Choose remote neovim session for clipboard diagnostics",
+    }, function(choice)
+      if choice == nil then
+        vim.notify("No session selected")
+      else
+        check_clipboard_for_session(choice, sessions[choice])
       end
-    end
-
-    if #args == 0 then
-      return running_sessions
-    end
-    local host_ids = vim.fn.filter(running_sessions, function(_, item)
-      return not vim.tbl_contains(args, item)
     end)
-    local completion_word = table.remove(args, #args)
+  end
+end
 
-    -- If we have not provided any input, then the last word is the last completion
-    if vim.tbl_contains(running_sessions, completion_word) then
-      return host_ids
-    end
-    return vim.fn.matchfuzzy(running_sessions, completion_word)
-  end,
+vim.api.nvim_create_user_command("RemoteClipboardCheck", M.RemoteClipboardCheck, {
+  desc = "Check Remote Neovim clipboard diagnostics",
+  nargs = "?",
+  complete = complete_running_sessions,
 })
 
 vim.api.nvim_create_user_command("RemoteConfigDel", function(opts)

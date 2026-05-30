@@ -652,7 +652,92 @@ end
 ---Build remote startup command that enables local clipboard support after UI attach.
 ---@return string command Neovim --cmd command
 function Provider:_get_clipboard_setup_cmd()
-  return [=[lua vim.api.nvim_create_autocmd("UIEnter", { callback = function() vim.defer_fn(function() local clipboard = vim.g.clipboard; if not (type(clipboard) == "table" and string.lower(tostring(clipboard.name or "")) == "neovide") then local osc52 = require("vim.ui.clipboard.osc52"); local cache = {}; local function copy(reg) return function(lines, regtype) cache[reg] = { lines, regtype }; osc52.copy(reg)(lines) end end; local function paste(reg) return function() return cache[reg] or { {}, "v" } end end; vim.g.clipboard = { name = "remote-nvim OSC 52", copy = { ["+"] = copy("+"), ["*"] = copy("*") }, paste = { ["+"] = paste("+"), ["*"] = paste("*") }, cache_enabled = 0 }; end vim.opt.clipboard = "unnamedplus"; vim.g.loaded_clipboard_provider = nil; vim.cmd("runtime autoload/provider/clipboard.vim"); end, 100) end })]=]
+  return [=[lua
+local function remote_nvim_setup_clipboard(source)
+  local ok, err = pcall(function()
+    local clipboard = vim.g.clipboard
+    local provider = "osc52"
+    local name = "remote-nvim OSC 52"
+
+    if type(clipboard) == "table" and string.lower(tostring(clipboard.name or "")) == "neovide" then
+      provider = "neovide"
+      name = clipboard.name
+    else
+      local osc52 = require("vim.ui.clipboard.osc52")
+      local previous_cache = type(clipboard) == "table" and clipboard.remote_nvim_cache or nil
+      local cache = type(previous_cache) == "table" and previous_cache or {}
+      local function copy(reg)
+        return function(lines, regtype)
+          cache[reg] = { lines, regtype }
+          osc52.copy(reg)(lines)
+        end
+      end
+      local function paste(reg)
+        return function()
+          return cache[reg] or { {}, "v" }
+        end
+      end
+
+      vim.g.clipboard = {
+        name = name,
+        copy = { ["+"] = copy("+"), ["*"] = copy("*") },
+        paste = { ["+"] = paste("+"), ["*"] = paste("*") },
+        cache_enabled = 0,
+        remote_nvim_cache = cache,
+      }
+    end
+
+    vim.opt.clipboard = "unnamedplus"
+    vim.g.loaded_clipboard_provider = nil
+    pcall(vim.cmd, "runtime autoload/provider/clipboard.vim")
+
+    local previous = vim.g.remote_nvim_clipboard
+    local install_count = type(previous) == "table" and (tonumber(previous.install_count) or 0) or 0
+    vim.g.remote_nvim_clipboard = {
+      installed = true,
+      provider = provider,
+      source = source,
+      install_count = install_count + 1,
+      name = name,
+      last_error = nil,
+    }
+  end)
+
+  if not ok then
+    local previous = vim.g.remote_nvim_clipboard
+    local install_count = type(previous) == "table" and (tonumber(previous.install_count) or 0) or 0
+    vim.g.remote_nvim_clipboard = {
+      installed = false,
+      provider = type(previous) == "table" and previous.provider or nil,
+      source = source,
+      install_count = install_count,
+      name = type(previous) == "table" and previous.name or nil,
+      last_error = tostring(err),
+    }
+  end
+end
+
+local function remote_nvim_schedule_clipboard_setup(source, delays)
+  remote_nvim_setup_clipboard(source)
+  for _, delay in ipairs(delays) do
+    vim.defer_fn(function()
+      remote_nvim_setup_clipboard(source .. ":" .. delay)
+    end, delay)
+  end
+end
+
+remote_nvim_schedule_clipboard_setup("startup", { 100, 500, 1500 })
+vim.api.nvim_create_autocmd({ "UIEnter", "VimEnter" }, {
+  callback = function(event)
+    remote_nvim_schedule_clipboard_setup(event.event, { 100, 500, 1500 })
+  end,
+})
+vim.api.nvim_create_autocmd("User", {
+  pattern = "LazyDone",
+  callback = function()
+    remote_nvim_schedule_clipboard_setup("LazyDone", { 100, 500, 1500 })
+  end,
+})]=]
 end
 
 ---@private
