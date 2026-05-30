@@ -424,6 +424,12 @@ end
 ---@param node NuiTree.Node Progress node for the launch command
 function Provider:_handle_remote_server_exit(exit_code, node)
   self._last_exit_code = exit_code
+  if self._detached_state == "detached" then
+    self._last_reconnect_reason = "detached"
+    self:_refresh_runtime_diagnostics()
+    self.progress_viewer:update_status("success", true, node)
+    return
+  end
   local reconnect_scheduled = self:_schedule_reconnect(exit_code)
   if reconnect_scheduled then
     self._last_reconnect_reason = "unexpected exit"
@@ -788,6 +794,18 @@ local function remote_nvim_schedule_clipboard_setup(source, delays)
   end
 end
 
+local function remote_nvim_mark_detachable_server()
+  local pidfile = vim.env.REMOTE_NVIM_PIDFILE
+  if pidfile and pidfile ~= "" then
+    local ok, file = pcall(io.open, pidfile, "w")
+    if ok and file then
+      file:write(tostring(vim.uv and vim.uv.os_getpid() or vim.loop.os_getpid()))
+      file:close()
+    end
+  end
+end
+
+remote_nvim_mark_detachable_server()
 remote_nvim_schedule_clipboard_setup("startup", { 100, 500, 1500 })
 vim.api.nvim_create_autocmd({ "UIEnter", "VimEnter" }, {
   callback = function(event)
@@ -1059,12 +1077,14 @@ function Provider:_launch_remote_neovim_server()
 
     -- Launch Neovim server and port forward
     local port_forward_opts = ([[-t -L %s:localhost:%s]]):format(self._local_free_port, remote_free_port)
-    local remote_server_launch_cmd = ([[XDG_CONFIG_HOME=%s XDG_DATA_HOME=%s XDG_STATE_HOME=%s XDG_CACHE_HOME=%s NVIM_APPNAME=%s %s --listen 0.0.0.0:%s --headless]]):format(
+    local remote_pidfile_path = utils.path_join(self._remote_is_windows, self._remote_workspace_id_path, "nvim.pid")
+    local remote_server_launch_cmd = ([[XDG_CONFIG_HOME=%s XDG_DATA_HOME=%s XDG_STATE_HOME=%s XDG_CACHE_HOME=%s NVIM_APPNAME=%s REMOTE_NVIM_PIDFILE=%s %s --listen 0.0.0.0:%s --headless]]):format(
       self._remote_xdg_config_path,
       self._remote_xdg_data_path,
       self._remote_xdg_state_path,
       self._remote_xdg_cache_path,
       remote_nvim.config.remote.app_name,
+      remote_pidfile_path,
       self:_remote_neovim_binary_path(),
       remote_free_port
     )
@@ -1096,6 +1116,9 @@ function Provider:_launch_remote_neovim_server()
       vim.notify("Remote server stopped", vim.log.levels.INFO)
     end, "Launching Remote Neovim server")
     self._remote_server_process_id = self.executor:last_job_id()
+    self:run_command(("test -f %s && cat %s || true"):format(remote_pidfile_path, remote_pidfile_path), "Reading remote Neovim server PID")
+    local remote_pid_output = self.executor:job_stdout()
+    self._remote_server_pid = remote_pid_output[#remote_pid_output]
     self:_refresh_runtime_diagnostics()
     if self:is_remote_server_running() then
       self.progress_viewer:add_session_node({
@@ -1299,9 +1322,6 @@ function Provider:detach_neovim()
   end
 
   self:_detached_registry():upsert(self.unique_host_id, self:_detached_record("detached"))
-  if self._remote_server_process_id then
-    vim.fn.jobstop(self._remote_server_process_id)
-  end
   self._remote_server_process_id = nil
   self._local_free_port = nil
   self._detached_state = "detached"

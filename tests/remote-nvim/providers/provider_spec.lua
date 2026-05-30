@@ -586,7 +586,7 @@ describe("Provider", function()
     assert.is_true(provider._provider_stopped_neovim)
   end)
 
-  it("detaches an SSH remote server by persisting runtime metadata and stopping local forwarding", function()
+  it("detaches an SSH remote server by persisting runtime metadata and marking local forwarding detached", function()
     local registry = require("remote-nvim.detached_registry")()
     local upsert_stub = stub(registry, "upsert")
     local detached_registry_stub = stub(provider, "_detached_registry").returns(registry)
@@ -616,7 +616,7 @@ describe("Provider", function()
     assert.are.same("32123", record.remote_port)
     assert.are.same("4567", record.remote_pid)
     assert.are.same("localhost:32123", record.remote_servername)
-    assert.stub(job_stop_stub).was.called_with(99)
+    assert.stub(job_stop_stub).was.not_called()
     assert.is_nil(provider._remote_server_process_id)
     assert.is_nil(provider._local_free_port)
     assert.are.same("detached", provider._detached_state)
@@ -1042,7 +1042,7 @@ describe("Provider", function()
         assert.stub(local_free_port_stub).was.called()
         assert.stub(run_command_stub).was.called_with(
           match.is_ref(provider),
-          "XDG_CONFIG_HOME=~/.remote-nvim/workspaces/ajfdalfj/.config XDG_DATA_HOME=~/.remote-nvim/workspaces/ajfdalfj/.local/share XDG_STATE_HOME=~/.remote-nvim/workspaces/ajfdalfj/.local/state XDG_CACHE_HOME=~/.remote-nvim/workspaces/ajfdalfj/.cache NVIM_APPNAME=nvim ~/.remote-nvim/nvim-downloads/stable/bin/nvim --listen 0.0.0.0:32123 --headless --cmd "
+          "XDG_CONFIG_HOME=~/.remote-nvim/workspaces/ajfdalfj/.config XDG_DATA_HOME=~/.remote-nvim/workspaces/ajfdalfj/.local/share XDG_STATE_HOME=~/.remote-nvim/workspaces/ajfdalfj/.local/state XDG_CACHE_HOME=~/.remote-nvim/workspaces/ajfdalfj/.cache NVIM_APPNAME=nvim REMOTE_NVIM_PIDFILE=~/.remote-nvim/workspaces/ajfdalfj/nvim.pid ~/.remote-nvim/nvim-downloads/stable/bin/nvim --listen 0.0.0.0:32123 --headless --cmd "
             .. clipboard_setup_cmd,
           match.is_string(),
           "-t -L 52232:localhost:32123",
@@ -1062,7 +1062,7 @@ describe("Provider", function()
         assert.stub(local_free_port_stub).was.called()
         assert.stub(run_command_stub).was.called_with(
           match.is_ref(provider),
-          "XDG_CONFIG_HOME=~/.remote-nvim/workspaces/ajfdalfj/.config XDG_DATA_HOME=~/.remote-nvim/workspaces/ajfdalfj/.local/share XDG_STATE_HOME=~/.remote-nvim/workspaces/ajfdalfj/.local/state XDG_CACHE_HOME=~/.remote-nvim/workspaces/ajfdalfj/.cache NVIM_APPNAME=nvim ~/.remote-nvim/nvim-downloads/stable/bin/nvim --listen 0.0.0.0:32123 --headless --cmd "
+          "XDG_CONFIG_HOME=~/.remote-nvim/workspaces/ajfdalfj/.config XDG_DATA_HOME=~/.remote-nvim/workspaces/ajfdalfj/.local/share XDG_STATE_HOME=~/.remote-nvim/workspaces/ajfdalfj/.local/state XDG_CACHE_HOME=~/.remote-nvim/workspaces/ajfdalfj/.cache NVIM_APPNAME=nvim REMOTE_NVIM_PIDFILE=~/.remote-nvim/workspaces/ajfdalfj/nvim.pid ~/.remote-nvim/nvim-downloads/stable/bin/nvim --listen 0.0.0.0:32123 --headless --cmd "
             .. clipboard_setup_cmd
             .. " --cmd 'cd /home/test-user'",
           match.is_string(),
@@ -1077,7 +1077,7 @@ describe("Provider", function()
         provider:_launch_remote_neovim_server()
         assert.stub(run_command_stub).was.called_with(
           match.is_ref(provider),
-          "XDG_CONFIG_HOME=~/.remote-nvim/workspaces/ajfdalfj/.config XDG_DATA_HOME=~/.remote-nvim/workspaces/ajfdalfj/.local/share XDG_STATE_HOME=~/.remote-nvim/workspaces/ajfdalfj/.local/state XDG_CACHE_HOME=~/.remote-nvim/workspaces/ajfdalfj/.cache NVIM_APPNAME=nvim ~/.remote-nvim/nvim-downloads/stable/bin/nvim --listen 0.0.0.0:32123 --headless --cmd "
+          "XDG_CONFIG_HOME=~/.remote-nvim/workspaces/ajfdalfj/.config XDG_DATA_HOME=~/.remote-nvim/workspaces/ajfdalfj/.local/share XDG_STATE_HOME=~/.remote-nvim/workspaces/ajfdalfj/.local/state XDG_CACHE_HOME=~/.remote-nvim/workspaces/ajfdalfj/.cache NVIM_APPNAME=nvim REMOTE_NVIM_PIDFILE=~/.remote-nvim/workspaces/ajfdalfj/nvim.pid ~/.remote-nvim/nvim-downloads/stable/bin/nvim --listen 0.0.0.0:32123 --headless --cmd "
             .. clipboard_setup_cmd,
           match.is_string(),
           "-t -L 52232:localhost:32123",
