@@ -513,6 +513,10 @@ local function check_clipboard_for_session(host_id, session)
     return
   end
 
+  if type(session.set_clipboard_diagnostics) == "function" then
+    session:set_clipboard_diagnostics(result)
+  end
+
   notify_clipboard_diagnostics(host_id, result)
 end
 

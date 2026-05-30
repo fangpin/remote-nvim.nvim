@@ -12,6 +12,7 @@ describe("Remote Neovim commands", function()
   local rpcrequest_stub
   local chanclose_stub
   local select_stub
+  local clipboard_diagnostics_result
 
   local function make_session(opts)
     opts = opts or {}
@@ -22,6 +23,7 @@ describe("Remote Neovim commands", function()
       get_local_neovim_server_port = function()
         return opts.port
       end,
+      set_clipboard_diagnostics = opts.set_clipboard_diagnostics,
     }
   end
 
@@ -52,7 +54,7 @@ describe("Remote Neovim commands", function()
 
     notify_stub = stub(vim, "notify")
     sockconnect_stub = stub(vim.fn, "sockconnect").returns(11)
-    rpcrequest_stub = stub(vim, "rpcrequest").returns({
+    clipboard_diagnostics_result = {
       clipboard_option = "unnamedplus",
       clipboard_type = "table",
       clipboard_name = "remote-nvim OSC 52",
@@ -69,7 +71,8 @@ describe("Remote Neovim commands", function()
         install_count = 1,
       },
       ui_count = 1,
-    })
+    }
+    rpcrequest_stub = stub(vim, "rpcrequest").returns(clipboard_diagnostics_result)
     chanclose_stub = stub(vim.fn, "chanclose")
     select_stub = stub(vim.ui, "select")
     load_command()
@@ -150,14 +153,21 @@ describe("Remote Neovim commands", function()
     assert.stub(sockconnect_stub).was_not.called()
   end)
 
-  it("queries one running session and notifies clipboard diagnostics", function()
-    sessions.host1 = make_session({ port = 1234 })
+  it("queries one running session, caches the clipboard diagnostics, and notifies", function()
+    local set_clipboard_diagnostics = stub()
+    sessions.host1 = make_session({
+      port = 1234,
+      set_clipboard_diagnostics = function(_, result)
+        set_clipboard_diagnostics(result)
+      end,
+    })
 
     run("")
 
     assert.stub(sockconnect_stub).was.called_with("tcp", "localhost:1234", { rpc = true })
     assert.stub(rpcrequest_stub).was.called_with(11, "nvim_exec_lua", match.matches("remote_nvim_clipboard"), {})
     assert.stub(chanclose_stub).was.called_with(11)
+    assert.stub(set_clipboard_diagnostics).was.called_with(clipboard_diagnostics_result)
     assert.stub(notify_stub).was.called_with(match.matches("Remote clipboard diagnostics for host1"), vim.log.levels.INFO)
   end)
 

@@ -738,6 +738,12 @@ describe("Provider", function()
     )
   end)
 
+  it("shows the cached clipboard provider in runtime diagnostics", function()
+    provider:set_clipboard_diagnostics({ clipboard_name = "remote-nvim OSC 52" })
+
+    assert.are.same({ key = "Clipboard", value = "remote-nvim OSC 52" }, provider:_runtime_diagnostics_entries()[10])
+  end)
+
   describe("should handle reconnect correctly", function()
     local defer_fn_stub
 

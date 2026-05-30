@@ -338,6 +338,11 @@ end
 ---@return { key: string, value: any }[] entries Runtime diagnostics entries
 function Provider:_runtime_diagnostics_entries()
   local reconnect = remote_nvim.config.remote.reconnect or {}
+  local clipboard = "not checked yet"
+  if self._last_clipboard_diagnostics then
+    clipboard = self._last_clipboard_diagnostics.clipboard_name or "checked with warnings"
+  end
+
   return {
     { key = "State", value = self._detached_state or (self:is_remote_server_running() and "active" or "stopped") },
     { key = "Local job ID", value = self._remote_server_process_id },
@@ -348,7 +353,7 @@ function Provider:_runtime_diagnostics_entries()
     { key = "Reconnect attempt", value = ("%s/%s"):format(self._reconnect_attempt or 0, reconnect.max_attempts or 0) },
     { key = "Last exit code", value = self._last_exit_code },
     { key = "Last reconnect reason", value = self._last_reconnect_reason },
-    { key = "Clipboard", value = self._last_clipboard_diagnostics and "checked" or "not checked yet" },
+    { key = "Clipboard", value = clipboard },
   }
 end
 
