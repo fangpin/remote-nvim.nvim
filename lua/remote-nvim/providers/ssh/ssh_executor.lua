@@ -117,6 +117,18 @@ function SSHExecutor:run_command(command, job_opts)
   return self:run_executor_job(self:_build_run_command(command, job_opts), job_opts)
 end
 
+---Start a port-forward-only SSH job.
+---@param local_port string|number Local port to bind
+---@param remote_port string|number Remote port to forward to
+---@param job_opts remote-nvim.provider.Executor.JobOpts?
+function SSHExecutor:start_port_forward(local_port, remote_port, job_opts)
+  job_opts = job_opts or {}
+  local forward_opts = ("-N -L %s:localhost:%s"):format(local_port, remote_port)
+  local conn_opts = self.ssh_conn_opts == "" and forward_opts or (self.ssh_conn_opts .. " " .. forward_opts)
+  local host_conn_opts = conn_opts == "" and self.host or conn_opts .. " " .. self.host
+  return self:run_executor_job(("%s %s"):format(self.ssh_binary, host_conn_opts), job_opts)
+end
+
 ---@private
 ---Handle when the SSH job requires a job input
 ---@param prompt remote-nvim.config.PluginConfig.SSHConfig.SSHPrompt

@@ -586,6 +586,54 @@ describe("Provider", function()
     assert.is_true(provider._provider_stopped_neovim)
   end)
 
+  it("detaches an SSH remote server by persisting runtime metadata and stopping local forwarding", function()
+    local registry = require("remote-nvim.detached_registry")()
+    local upsert_stub = stub(registry, "upsert")
+    local detached_registry_stub = stub(provider, "_detached_registry").returns(registry)
+    local is_remote_server_running_stub = stub(provider, "is_remote_server_running").returns(true)
+    local job_stop_stub = stub(vim.fn, "jobstop")
+    provider.provider_type = "ssh"
+    provider._local_free_port = 12345
+    provider._remote_free_port = "32123"
+    provider._remote_server_pid = "4567"
+    provider._remote_server_process_id = 99
+    provider._remote_workspace_id = "workspace-1"
+    provider._remote_neovim_home = ".remote-nvim"
+    provider._remote_working_dir = "/remote/project"
+    provider._remote_neovim_version = "stable"
+
+    provider:detach_neovim()
+
+    assert.stub(upsert_stub).was.called_with(
+      match.is_ref(registry),
+      provider.unique_host_id,
+      match.is_table()
+    )
+    local record = upsert_stub.calls[1].refs[3]
+    assert.are.same("detached", record.status)
+    assert.are.same("ssh", record.provider)
+    assert.are.same(provider.host, record.host)
+    assert.are.same("32123", record.remote_port)
+    assert.are.same("4567", record.remote_pid)
+    assert.are.same("localhost:32123", record.remote_servername)
+    assert.stub(job_stop_stub).was.called_with(99)
+    assert.is_nil(provider._remote_server_process_id)
+    assert.is_nil(provider._local_free_port)
+    assert.are.same("detached", provider._detached_state)
+    assert.is_false(provider._provider_stopped_neovim)
+
+    detached_registry_stub:revert()
+    is_remote_server_running_stub:revert()
+  end)
+
+  it("rejects detach for non-SSH providers", function()
+    provider.provider_type = "devpod"
+
+    provider:detach_neovim()
+
+    assert.stub(vim.notify).was.called_with(match.matches("Detach is only supported for SSH"), vim.log.levels.WARN)
+  end)
+
   it("records last exit code and reconnect reason after remote server exits", function()
     remote_nvim.config.remote.reconnect = { enabled = false, max_attempts = 0, backoff_ms = 100 }
 

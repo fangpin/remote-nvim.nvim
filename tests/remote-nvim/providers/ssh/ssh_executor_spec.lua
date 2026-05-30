@@ -1,5 +1,6 @@
 local assert = require("luassert.assert")
 local stub = require("luassert.stub")
+local match = require("luassert.match")
 
 describe("SSH Executor", function()
   local SSHExecutor = require("remote-nvim.providers.ssh.ssh_executor")
@@ -128,6 +129,16 @@ describe("SSH Executor", function()
       local other_rsync_command = "rsync -r -e 'ssh -p 2310' remote-host:remote-path local-path"
       assert.stub(other_executor_run_job_stub).was.called_with(other_executor, other_rsync_command, {})
     end)
+  end)
+
+  it("starts a forward-only SSH job", function()
+    executor:start_port_forward("12345", "32123")
+
+    assert.stub(executor_run_job_stub).was.called_with(
+      match.is_ref(executor),
+      "ssh -N -L 12345:localhost:32123 remote-host",
+      match.is_table()
+    )
   end)
 
   describe("should correctly run command job with correct arguments", function()

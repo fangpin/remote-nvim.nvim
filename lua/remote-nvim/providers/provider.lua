@@ -1258,6 +1258,57 @@ function Provider:stop_neovim(cb)
   end
 end
 
+---@private
+---@return remote-nvim.DetachedRegistry registry Detached session registry
+function Provider:_detached_registry()
+  return require("remote-nvim.detached_registry")()
+end
+
+---@private
+---@param status string Detached record status
+---@return table record Detached runtime metadata
+function Provider:_detached_record(status)
+  local now = os.time()
+  return {
+    provider = self.provider_type,
+    host = self.host,
+    connection_options = self.conn_opts,
+    workspace_id = self._remote_workspace_id,
+    remote_neovim_home = self._remote_neovim_home,
+    working_dir = self._remote_working_dir,
+    remote_port = self._remote_free_port,
+    remote_pid = self._remote_server_pid,
+    remote_servername = self._remote_free_port and ("localhost:%s"):format(self._remote_free_port) or nil,
+    neovim_version = self._remote_neovim_version,
+    created_at = now,
+    last_seen_at = now,
+    status = status,
+  }
+end
+
+---Detach a running SSH Neovim session while leaving the remote server alive.
+function Provider:detach_neovim()
+  if self.provider_type ~= "ssh" then
+    vim.notify("Detach is only supported for SSH sessions", vim.log.levels.WARN)
+    return
+  end
+
+  if not self:is_remote_server_running() then
+    vim.notify("No running remote Neovim server to detach", vim.log.levels.WARN)
+    return
+  end
+
+  self:_detached_registry():upsert(self.unique_host_id, self:_detached_record("detached"))
+  if self._remote_server_process_id then
+    vim.fn.jobstop(self._remote_server_process_id)
+  end
+  self._remote_server_process_id = nil
+  self._local_free_port = nil
+  self._detached_state = "detached"
+  self:_refresh_runtime_diagnostics()
+  vim.notify(("Detached remote Neovim session '%s'"):format(self.unique_host_id), vim.log.levels.INFO)
+end
+
 ---Cleanup remote host
 function Provider:clean_up_remote_host()
   self:_run_code_in_coroutine(function()
