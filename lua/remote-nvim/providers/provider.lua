@@ -649,10 +649,10 @@ function Provider:_remote_neovim_binary_dir()
 end
 
 ---@private
----Build remote startup command that lets Neovide's remote clipboard provider take over after UI attach.
+---Build remote startup command that enables local clipboard support after UI attach.
 ---@return string command Neovim --cmd command
-function Provider:_get_neovide_clipboard_setup_cmd()
-  return [=[lua vim.api.nvim_create_autocmd("UIEnter", { callback = function() vim.defer_fn(function() local clipboard = vim.g.clipboard; if type(clipboard) == "table" and string.lower(tostring(clipboard.name or "")) == "neovide" then vim.opt.clipboard = "unnamedplus"; vim.g.loaded_clipboard_provider = nil; vim.cmd("runtime autoload/provider/clipboard.vim"); end end, 100) end })]=]
+function Provider:_get_clipboard_setup_cmd()
+  return [=[lua vim.api.nvim_create_autocmd("UIEnter", { callback = function() vim.defer_fn(function() local clipboard = vim.g.clipboard; if not (type(clipboard) == "table" and string.lower(tostring(clipboard.name or "")) == "neovide") then vim.g.clipboard = "osc52"; end vim.opt.clipboard = "unnamedplus"; vim.g.loaded_clipboard_provider = nil; vim.cmd("runtime autoload/provider/clipboard.vim"); end, 100) end })]=]
 end
 
 ---@private
@@ -903,7 +903,7 @@ function Provider:_launch_remote_neovim_server()
 
     remote_server_launch_cmd = ("%s --cmd %s"):format(
       remote_server_launch_cmd,
-      vim.fn.shellescape(self:_get_neovide_clipboard_setup_cmd())
+      vim.fn.shellescape(self:_get_clipboard_setup_cmd())
     )
 
     -- If we have a specified working directory, we launch there

@@ -277,7 +277,7 @@ value.
       },
     
       -- You can supply your own callback that should be called to create the local client. The default implementation
-      -- starts Neovide when remote-nvim itself is running inside Neovide and falls back to `nvim --remote-ui` otherwise.
+      -- starts a terminal remote UI with `nvim --remote-ui`.
       -- Two arguments are passed to the callback:
       -- port: Local port at which the remote server is available
       -- workspace_config: Workspace configuration for the host. For all the properties available, see https://github.com/amitds1997/remote-nvim.nvim/blob/main/lua/remote-nvim/providers/provider.luaL4
@@ -465,17 +465,20 @@ client. It does not yet keep the remote Neovim server alive independently from
 the SSH tunnel.
 
 
-NEOVIDE CLIENT AND CLIPBOARD ~
+LOCAL CLIPBOARD IN THE TERMINAL CLIENT ~
 
-When `:RemoteStart` is run from Neovide and the `neovide` binary is available
-on the local machine, `remote-nvim` automatically opens the remote UI in a
-Neovide window instead of nesting `nvim --remote-ui` in a terminal. The remote
-server also installs a small startup hook so Neovide’s remote clipboard provider
-can take over after the UI attaches.
+The default local client is `nvim --remote-ui`, even when `:RemoteStart` is run
+from Neovide. This keeps the terminal UI behavior for scrolling, fonts, and
+rendering while still allowing remote yanks to reach the local clipboard.
 
-If you override `client_callback`, keep this behavior in mind: starting
-`nvim --remote-ui` from inside Neovide creates a terminal UI client, so
-Neovide’s local clipboard bridge will not be used by that remote session.
+To make that work, the remote server installs a small startup hook that uses
+Neovim’s built-in OSC 52 clipboard provider for terminal UI clients. This means
+yanking with `yy`, visual mode `y`, or any operation that writes to the `+`
+register can update the local clipboard without requiring clipboard tools on
+the remote host.
+
+If you override `client_callback` to launch a GUI client such as Neovide, the
+startup hook preserves Neovide’s clipboard provider when it is available.
 
 
 INTEGRATION WITH STATUSLINE          *remote-nvim-integration-with-statusline*

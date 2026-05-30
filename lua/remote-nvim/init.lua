@@ -98,19 +98,6 @@ local function launch_terminal_client(port)
   end)
 end
 
-local function try_launch_neovide_client(port)
-  if vim.g.neovide ~= true or vim.fn.executable("neovide") ~= 1 then
-    return false
-  end
-
-  local ok, job_id = pcall(vim.fn.jobstart, {
-    "neovide",
-    ("--server=localhost:%s"):format(port),
-  }, { detach = true })
-
-  return ok and type(job_id) == "number" and job_id > 0
-end
-
 M.default_opts = {
   devpod = {
     binary = "devpod",
@@ -208,10 +195,6 @@ M.default_opts = {
     },
   },
   client_callback = function(port, _)
-    if try_launch_neovide_client(port) then
-      return
-    end
-
     launch_terminal_client(port)
   end,
   neovim_install_script_path = utils.path_join(
