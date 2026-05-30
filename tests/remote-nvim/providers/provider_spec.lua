@@ -636,7 +636,7 @@ describe("Provider", function()
 
   it("reattaches a detached session after probing PID and port before forwarding", function()
     local registry = require("remote-nvim.detached_registry")()
-    local upsert_stub = stub(registry, "upsert")
+    local remove_stub = stub(registry, "remove")
     local detached_registry_stub = stub(provider, "_detached_registry").returns(registry)
     local remote_pid_alive_stub = stub(provider, "_remote_pid_alive").returns(true)
     local remote_port_alive_stub = stub(provider, "_remote_port_alive").returns(true)
@@ -656,7 +656,46 @@ describe("Provider", function()
     assert.equals("32123", provider._remote_free_port)
     assert.equals("4567", provider._remote_server_pid)
     assert.stub(launch_local_client_stub).was.called()
-    assert.stub(upsert_stub).was.called_with(match.is_ref(registry), provider.unique_host_id, match.is_table())
+    assert.stub(remove_stub).was.called_with(match.is_ref(registry), provider.unique_host_id)
+
+    detached_registry_stub:revert()
+    local_free_port_stub:revert()
+    last_job_id_stub:revert()
+  end)
+
+  it("rejects reattach when the provider already has a running local session", function()
+    local remote_pid_alive_stub = stub(provider, "_remote_pid_alive").returns(true)
+    local remote_port_alive_stub = stub(provider, "_remote_port_alive").returns(true)
+    local start_port_forward_stub = stub(provider.executor, "start_port_forward")
+    provider.provider_type = "ssh"
+    provider._remote_server_process_id = 99
+    local is_remote_server_running_stub = stub(provider, "is_remote_server_running").returns(true)
+
+    provider:reattach_neovim({ remote_pid = "4567", remote_port = "32123", status = "detached" })
+
+    assert.stub(remote_pid_alive_stub).was.not_called()
+    assert.stub(remote_port_alive_stub).was.not_called()
+    assert.stub(start_port_forward_stub).was.not_called()
+    assert.stub(vim.notify).was.called_with(match.matches("already has a running local session"), vim.log.levels.WARN)
+
+    is_remote_server_running_stub:revert()
+  end)
+
+  it("removes the detached registry record after successful reattach", function()
+    local registry = require("remote-nvim.detached_registry")()
+    local remove_stub = stub(registry, "remove")
+    local detached_registry_stub = stub(provider, "_detached_registry").returns(registry)
+    stub(provider, "_remote_pid_alive").returns(true)
+    stub(provider, "_remote_port_alive").returns(true)
+    local local_free_port_stub = stub(require("remote-nvim.providers.utils"), "find_free_port").returns(12345)
+    stub(provider.executor, "start_port_forward")
+    local last_job_id_stub = stub(provider.executor, "last_job_id").returns(99)
+    stub(provider, "_launch_local_neovim_client")
+    provider.provider_type = "ssh"
+
+    provider:reattach_neovim({ remote_pid = "4567", remote_port = "32123", status = "detached" })
+
+    assert.stub(remove_stub).was.called_with(match.is_ref(registry), provider.unique_host_id)
 
     detached_registry_stub:revert()
     local_free_port_stub:revert()
@@ -691,7 +730,7 @@ describe("Provider", function()
 
     provider:kill_detached_neovim({ remote_pid = "4567", status = "detached" })
 
-    assert.stub(run_command_stub).was.called_with(match.is_ref(provider), "kill '4567'", match.is_string())
+    assert.stub(run_command_stub).was.called_with(match.is_ref(provider), "kill '4567' || true", match.is_string())
     assert.stub(remove_stub).was.called_with(match.is_ref(registry), provider.unique_host_id)
 
     detached_registry_stub:revert()
@@ -709,6 +748,26 @@ describe("Provider", function()
     assert.stub(remove_stub).was.called_with(match.is_ref(registry), provider.unique_host_id)
 
     detached_registry_stub:revert()
+  end)
+
+  it("treats remote ports as dead when liveness is unknown", function()
+    local run_command_stub = stub(provider, "run_command")
+    local job_stdout_stub = stub(provider.executor, "job_stdout").returns({ "unknown" })
+
+    assert.is_false(provider:_remote_port_alive("32123"))
+    assert.stub(run_command_stub).was.called_with(match.is_ref(provider), match.matches("/dev/tcp"), match.is_string())
+
+    job_stdout_stub:revert()
+  end)
+
+  it("returns true only when the remote port probe confirms liveness", function()
+    local run_command_stub = stub(provider, "run_command")
+    local job_stdout_stub = stub(provider.executor, "job_stdout").returns({ "alive" })
+
+    assert.is_true(provider:_remote_port_alive("32123"))
+    assert.stub(run_command_stub).was.called_with(match.is_ref(provider), match.matches("nc %-z"), match.is_string())
+
+    job_stdout_stub:revert()
   end)
 
   it("records last exit code and reconnect reason after remote server exits", function()

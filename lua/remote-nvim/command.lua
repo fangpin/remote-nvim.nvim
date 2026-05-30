@@ -157,17 +157,25 @@ vim.api.nvim_create_user_command("RemoteCleanup", M.RemoteCleanup, {
   end,
 })
 
-local function get_running_sessions()
+local function get_running_sessions(filter)
   local sessions = remote_nvim.session_provider:get_all_sessions()
   local running_sessions = {}
   for host_id, session in pairs(sessions) do
-    if session:is_remote_server_running() then
+    if session:is_remote_server_running() and (filter == nil or filter(session)) then
       table.insert(running_sessions, host_id)
     end
   end
   table.sort(running_sessions)
 
   return sessions, running_sessions
+end
+
+local function is_ssh_session(session)
+  return session.provider_type == "ssh"
+end
+
+local function get_running_ssh_sessions()
+  return get_running_sessions(is_ssh_session)
 end
 
 local function complete_running_sessions(_, line)
@@ -199,20 +207,45 @@ local function get_detached_records()
   return M._detached_registry():get_all()
 end
 
-local function get_detached_record(host_id)
+local function is_reattachable_detached_record(record)
+  return record.status ~= "stale"
+end
+
+local function get_reattachable_detached_records()
+  local records = get_detached_records()
+  local reattachable_records = {}
+  for host_id, record in pairs(records) do
+    if is_reattachable_detached_record(record) then
+      reattachable_records[host_id] = record
+    end
+  end
+  return reattachable_records
+end
+
+local function get_detached_record(host_id, opts)
+  opts = opts or {}
   local record = M._detached_registry():get(host_id)
   if vim.tbl_isempty(record) then
     vim.notify(("No detached remote session to '%s' found"):format(host_id), vim.log.levels.WARN)
     return nil
   end
+  if opts.require_reattachable and not is_reattachable_detached_record(record) then
+    vim.notify(
+      ("Detached session '%s' is stale. Use :RemoteKillDetached %s to clear it"):format(host_id, host_id),
+      vim.log.levels.WARN
+    )
+    return nil
+  end
   return record
 end
 
-local function complete_detached_sessions(_, line)
+local function complete_detached_sessions(_, line, opts)
+  opts = opts or {}
   local args = vim.split(vim.trim(line), "%s+")
   table.remove(args, 1)
 
-  local detached_sessions = vim.tbl_keys(get_detached_records())
+  local records = opts.reattachable_only and get_reattachable_detached_records() or get_detached_records()
+  local detached_sessions = vim.tbl_keys(records)
   table.sort(detached_sessions)
 
   if #args == 0 then
@@ -242,7 +275,7 @@ end
 
 function M.RemoteDetach(opts)
   local host_ids = vim.split(vim.trim(opts.args), "%s+")
-  local sessions, running_sessions = get_running_sessions()
+  local sessions, running_sessions = get_running_ssh_sessions()
 
   if #host_ids == 1 and vim.trim(host_ids[1]) ~= "" then
     local host_id = host_ids[1]
@@ -250,6 +283,8 @@ function M.RemoteDetach(opts)
 
     if session == nil or not session:is_remote_server_running() then
       vim.notify(("No active remote session to '%s' found"):format(host_id), vim.log.levels.WARN)
+    elseif not is_ssh_session(session) then
+      vim.notify("Detach is only supported for SSH sessions", vim.log.levels.WARN)
     else
       session:detach_neovim()
     end
@@ -277,16 +312,34 @@ end
 vim.api.nvim_create_user_command("RemoteDetach", M.RemoteDetach, {
   desc = "Detach running Remote Neovim launched Neovim server",
   nargs = "?",
-  complete = complete_running_sessions,
+  complete = function(_, line)
+    local args = vim.split(vim.trim(line), "%s+")
+    table.remove(args, 1)
+
+    local _, running_sessions = get_running_ssh_sessions()
+
+    if #args == 0 then
+      return running_sessions
+    end
+    local host_ids = vim.fn.filter(running_sessions, function(_, item)
+      return not vim.tbl_contains(args, item)
+    end)
+    local completion_word = table.remove(args, #args)
+
+    if vim.tbl_contains(running_sessions, completion_word) then
+      return host_ids
+    end
+    return vim.fn.matchfuzzy(running_sessions, completion_word)
+  end,
 })
 
 function M.RemoteReattach(opts)
   local host_ids = vim.split(vim.trim(opts.args), "%s+")
-  local detached_records = get_detached_records()
+  local detached_records = get_reattachable_detached_records()
 
   if #host_ids == 1 and vim.trim(host_ids[1]) ~= "" then
     local host_id = host_ids[1]
-    local record = get_detached_record(host_id)
+    local record = get_detached_record(host_id, { require_reattachable = true })
     if record then
       get_session_for_detached_record(host_id, record):reattach_neovim(record)
     end
@@ -315,7 +368,9 @@ end
 vim.api.nvim_create_user_command("RemoteReattach", M.RemoteReattach, {
   desc = "Reattach a detached Remote Neovim session",
   nargs = "?",
-  complete = complete_detached_sessions,
+  complete = function(_, line)
+    return complete_detached_sessions(_, line, { reattachable_only = true })
+  end,
 })
 
 function M.RemoteKillDetached(opts)

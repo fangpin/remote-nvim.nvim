@@ -1386,15 +1386,20 @@ end
 
 ---@private
 ---@param port string|number Remote port to probe
----@return boolean alive Whether the remote port is alive, or unknown when nc is unavailable
+---@return boolean alive Whether the remote port is confirmed alive
 function Provider:_remote_port_alive(port)
+  local escaped_port = vim.fn.shellescape(tostring(port))
   self:run_command(
-    ("(command -v nc >/dev/null && nc -z localhost %s && echo alive) || echo unknown"):format(vim.fn.shellescape(tostring(port))),
+    (
+      "if command -v nc >/dev/null; then nc -z localhost %s && echo alive || echo dead; "
+      .. "elif command -v bash >/dev/null; then bash -c ':</dev/tcp/localhost/'%s && echo alive || echo dead; "
+      .. "else echo unknown; fi"
+    ):format(escaped_port, escaped_port),
     "Checking detached Neovim port"
   )
   local output = self.executor:job_stdout()
   local result = output[#output]
-  return result == "alive" or result == "unknown"
+  return result == "alive"
 end
 
 ---Reattach to a detached SSH Neovim session by recreating the local tunnel.
@@ -1402,6 +1407,14 @@ end
 function Provider:reattach_neovim(record)
   if self.provider_type ~= "ssh" then
     vim.notify("Reattach is only supported for SSH sessions", vim.log.levels.WARN)
+    return
+  end
+
+  if self:is_remote_server_running() then
+    vim.notify(
+      ("Remote session '%s' already has a running local session. Stop it before reattaching"):format(self.unique_host_id),
+      vim.log.levels.WARN
+    )
     return
   end
 
@@ -1419,14 +1432,14 @@ function Provider:reattach_neovim(record)
   self._detached_state = nil
   self:_refresh_runtime_diagnostics()
   self:_launch_local_neovim_client()
-  self:_detached_registry():upsert(self.unique_host_id, { last_seen_at = os.time(), status = "detached" })
+  self:_detached_registry():remove(self.unique_host_id)
 end
 
 ---Kill a detached Neovim server or clear a stale detached record.
 ---@param record table Detached registry record
 function Provider:kill_detached_neovim(record)
   if record.status ~= "stale" then
-    self:run_command(("kill %s"):format(vim.fn.shellescape(tostring(record.remote_pid))), "Killing detached Neovim server")
+    self:run_command(("kill %s || true"):format(vim.fn.shellescape(tostring(record.remote_pid))), "Killing detached Neovim server")
   end
   self:_detached_registry():remove(self.unique_host_id)
 end

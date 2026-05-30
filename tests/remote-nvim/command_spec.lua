@@ -17,6 +17,7 @@ describe("Remote Neovim commands", function()
   local function make_session(opts)
     opts = opts or {}
     return {
+      provider_type = opts.provider_type or "ssh",
       is_remote_server_running = function()
         return opts.running ~= false
       end,
@@ -97,6 +98,46 @@ describe("Remote Neovim commands", function()
     assert.stub(sessions.host1.detach_neovim).was.called()
   end)
 
+  it("chooses only running SSH sessions when detaching without a host", function()
+    sessions.ssh1 = make_session({ provider_type = "ssh" })
+    sessions.devpod1 = make_session({ provider_type = "devpod" })
+    sessions.ssh2 = make_session({ provider_type = "ssh" })
+    sessions.ssh1.detach_neovim = stub()
+    sessions.devpod1.detach_neovim = stub()
+    sessions.ssh2.detach_neovim = stub()
+    select_stub:revert()
+    select_stub = stub(vim.ui, "select").invokes(function(choices, opts, callback)
+      assert.same({ "ssh1", "ssh2" }, choices)
+      assert.are.equal("Choose active session that needs to be detached", opts.prompt)
+      callback("ssh2")
+    end)
+
+    command.RemoteDetach({ args = "" })
+
+    assert.stub(sessions.ssh2.detach_neovim).was.called()
+    assert.stub(sessions.devpod1.detach_neovim).was_not.called()
+  end)
+
+  it("warns when explicit detach target is not an SSH session", function()
+    sessions.devpod1 = make_session({ provider_type = "devpod" })
+    sessions.devpod1.detach_neovim = stub()
+
+    command.RemoteDetach({ args = "devpod1" })
+
+    assert.stub(sessions.devpod1.detach_neovim).was_not.called()
+    assert.stub(notify_stub).was.called_with("Detach is only supported for SSH sessions", vim.log.levels.WARN)
+  end)
+
+  it("completes RemoteDetach with only running SSH sessions", function()
+    sessions.ssh1 = make_session({ provider_type = "ssh" })
+    sessions.devpod1 = make_session({ provider_type = "devpod" })
+    sessions.stopped_ssh = make_session({ provider_type = "ssh", running = false })
+
+    local completion = vim.api.nvim_get_commands({})["RemoteDetach"].complete("", "RemoteDetach ")
+
+    assert.same({ "ssh1" }, completion)
+  end)
+
   it("reattaches a detached session from the registry", function()
     local registry = require("remote-nvim.detached_registry")()
     local get_stub = stub(registry, "get").returns({ provider = "ssh", host = "host1", status = "detached" })
@@ -110,6 +151,64 @@ describe("Remote Neovim commands", function()
     assert.stub(session.reattach_neovim).was.called()
 
     get_stub:revert()
+    detached_registry_stub:revert()
+  end)
+
+  it("hides stale detached records when choosing a session to reattach", function()
+    local registry = require("remote-nvim.detached_registry")()
+    local get_all_stub = stub(registry, "get_all").returns({
+      host1 = { provider = "ssh", host = "host1", status = "detached" },
+      stale1 = { provider = "ssh", host = "stale1", status = "stale" },
+    })
+    local detached_registry_stub = stub(command, "_detached_registry").returns(registry)
+    local session = { reattach_neovim = stub() }
+    remote_nvim.session_provider.get_or_initialize_session = stub().returns(session)
+    select_stub:revert()
+    select_stub = stub(vim.ui, "select").invokes(function(choices, opts, callback)
+      assert.same({ "host1" }, choices)
+      assert.are.equal("Choose detached session to reattach", opts.prompt)
+      callback("host1")
+    end)
+
+    command.RemoteReattach({ args = "" })
+
+    assert.stub(session.reattach_neovim).was.called()
+
+    get_all_stub:revert()
+    detached_registry_stub:revert()
+  end)
+
+  it("tells explicit stale reattach users to use RemoteKillDetached", function()
+    local registry = require("remote-nvim.detached_registry")()
+    local get_stub = stub(registry, "get").returns({ provider = "ssh", host = "stale1", status = "stale" })
+    local detached_registry_stub = stub(command, "_detached_registry").returns(registry)
+    remote_nvim.session_provider.get_or_initialize_session = stub()
+
+    command.RemoteReattach({ args = "stale1" })
+
+    assert.stub(remote_nvim.session_provider.get_or_initialize_session).was_not.called()
+    assert.stub(notify_stub).was.called_with(
+      "Detached session 'stale1' is stale. Use :RemoteKillDetached stale1 to clear it",
+      vim.log.levels.WARN
+    )
+
+    get_stub:revert()
+    detached_registry_stub:revert()
+  end)
+
+  it("completes RemoteReattach with only non-stale detached records", function()
+    local registry = require("remote-nvim.detached_registry")()
+    local get_all_stub = stub(registry, "get_all").returns({
+      host1 = { provider = "ssh", host = "host1", status = "detached" },
+      stale1 = { provider = "ssh", host = "stale1", status = "stale" },
+    })
+    local detached_registry_stub = stub(command, "_detached_registry").returns(registry)
+
+    local completion = vim.api.nvim_get_commands({})["RemoteReattach"].complete("", "RemoteReattach ")
+
+    assert.same({ "host1" }, completion)
+
+    get_all_stub:revert()
     detached_registry_stub:revert()
   end)
 
