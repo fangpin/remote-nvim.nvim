@@ -340,7 +340,9 @@ function Provider:_runtime_diagnostics_entries()
   local reconnect = remote_nvim.config.remote.reconnect or {}
   local clipboard = "not checked yet"
   if self._last_clipboard_diagnostics then
-    clipboard = self._last_clipboard_diagnostics.clipboard_name or "checked with warnings"
+    local clipboard_name = self._last_clipboard_diagnostics.clipboard_name
+    clipboard = (clipboard_name ~= nil and clipboard_name ~= vim.NIL and clipboard_name ~= "") and clipboard_name
+      or "checked with warnings"
   end
 
   return {
