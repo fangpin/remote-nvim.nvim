@@ -447,8 +447,19 @@ terminal UI clients. This means yanking with `yy`, visual mode `y`, or any opera
 update the local clipboard without requiring clipboard tools on the remote host. Paste falls back to the most recent
 cached yank instead of querying the terminal clipboard, since many terminals do not support OSC 52 reads.
 
+When the default client is launched from Neovide, `remote-nvim` also reloads the local Neovide clipboard provider before
+opening the nested terminal UI. This lets OSC 52 writes from the remote UI flow through the local terminal buffer into
+Neovide's system clipboard bridge.
+
 If you override `client_callback` to launch a GUI client such as Neovide, the startup hook preserves Neovide's clipboard
 provider when it is available.
+
+### Faster repeated startup
+
+On repeated `:RemoteStart` runs, `remote-nvim` checks whether the selected remote Neovim binary is already installed and
+runnable. If it is, the plugin skips the chmod/install script path and goes straight to launching the remote server.
+Script checksum checks and configured Neovim config sync still run, so fresh hosts and local config changes continue to
+work.
 
 ## 🥨 Integration with statusline
 

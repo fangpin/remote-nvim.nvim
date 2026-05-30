@@ -695,6 +695,7 @@ end
 
 ---@private
 ---Sync plugin scripts only when local script contents changed.
+---@return boolean synced Whether scripts were uploaded
 function Provider:_sync_plugin_scripts()
   local local_scripts_checksum = self:_get_local_plugin_scripts_checksum()
   self:run_command(
@@ -704,7 +705,7 @@ function Provider:_sync_plugin_scripts()
 
   local remote_scripts_checksum = table.concat(self.executor:job_stdout(), "\n"):match("(%x+)%s*$")
   if remote_scripts_checksum == local_scripts_checksum then
-    return
+    return false
   end
 
   self:upload(
@@ -726,6 +727,22 @@ function Provider:_sync_plugin_scripts()
     ("printf %%s %s > %s"):format(local_scripts_checksum, self._remote_scripts_checksum_path),
     "Saving plugin scripts checksum on remote"
   )
+  return true
+end
+
+---@private
+---Check whether the selected remote Neovim binary is already installed and runnable.
+---@return boolean installed Whether the remote Neovim binary is installed
+function Provider:_is_remote_neovim_installed()
+  local remote_neovim_binary_path = self:_remote_neovim_binary_path()
+  self:run_command(
+    ("if test -x %s && %s -v >/dev/null 2>&1; then printf installed; fi"):format(
+      remote_neovim_binary_path,
+      remote_neovim_binary_path
+    ),
+    "Checking remote Neovim installation"
+  )
+  return table.concat(self.executor:job_stdout(), "\n"):match("installed") ~= nil
 end
 
 ---@private
@@ -750,6 +767,7 @@ function Provider:_setup_remote()
     self:run_command(table.concat(mkdirs_cmds, " && "), "Creating custom neovim directories on remote")
 
     self:_sync_plugin_scripts()
+    local is_remote_neovim_installed = self:_is_remote_neovim_installed()
 
     local default_script_dir = vim.fn.fnamemodify(remote_nvim.default_opts.neovim_install_script_path, ":h:p")
     if not default_script_dir:match("/$") then
@@ -788,7 +806,7 @@ function Provider:_setup_remote()
     -- Set correct permissions and install Neovim
     local install_neovim_cmd = table.concat(install_cmd_lst, " && ")
 
-    if self.offline_mode and self._remote_neovim_install_method ~= "system" then
+    if not is_remote_neovim_installed and self.offline_mode and self._remote_neovim_install_method ~= "system" then
       -- We need to ensure that we download Neovim version locally and then push it to the remote
       if not remote_nvim.config.offline_mode.no_github then
         self:run_command(
@@ -831,7 +849,9 @@ function Provider:_setup_remote()
       install_neovim_cmd = install_neovim_cmd .. " -o"
     end
 
-    self:run_command(install_neovim_cmd, "Installing Neovim (if required)")
+    if not is_remote_neovim_installed then
+      self:run_command(install_neovim_cmd, "Installing Neovim (if required)")
+    end
 
     -- Upload user neovim config, if necessary
     if self:_get_neovim_config_upload_preference() then

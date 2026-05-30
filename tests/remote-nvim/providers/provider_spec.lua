@@ -773,6 +773,18 @@ describe("Provider", function()
           )
       end)
 
+      it("when remote Neovim is already installed", function()
+        stub(provider, "_is_remote_neovim_installed").returns(true)
+
+        provider:_setup_remote()
+
+        assert.stub(run_command_stub).was.not_called_with(
+          match.is_ref(provider),
+          "chmod +x ~/.remote-nvim/scripts/neovim_download.sh && chmod +x ~/.remote-nvim/scripts/neovim_install.sh && chmod +x ~/.remote-nvim/scripts/utils/api.sh && chmod +x ~/.remote-nvim/scripts/utils/core.sh && chmod +x ~/.remote-nvim/scripts/utils/neovim.sh && bash ~/.remote-nvim/scripts/neovim_install.sh -v stable -d ~/.remote-nvim -m binary -a x86_64",
+          match.is_string()
+        )
+      end)
+
       it("when we do not want to copy config", function()
         provider._config_provider:update_workspace_config(provider.unique_host_id, {
           config_copy = false,
@@ -997,6 +1009,16 @@ describe("Provider", function()
           match.is_function()
         )
       end)
+    end)
+  end)
+
+  describe("should configure clipboard correctly", function()
+    it("without using OSC52 paste queries", function()
+      local clipboard_setup_cmd = provider:_get_clipboard_setup_cmd()
+
+      assert.is_not_nil(clipboard_setup_cmd:find("osc52.copy", 1, true))
+      assert.is_nil(clipboard_setup_cmd:find("osc52.paste", 1, true))
+      assert.is_not_nil(clipboard_setup_cmd:find("cache%[reg%]", 1, false))
     end)
   end)
 

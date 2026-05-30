@@ -90,7 +90,57 @@ local utils = require("remote-nvim.utils")
 ---@field offline_mode remote-nvim.config.PluginConfig.OfflineModeConfig Offline mode configuration
 ---@field log remote-nvim.config.PluginConfig.LogConfig Plugin logging options
 
+local function build_neovide_clipboard()
+  if type(vim.g.neovide_channel_id) ~= "number" then
+    return nil
+  end
+
+  local channel_id = vim.g.neovide_channel_id
+  local function copy(register)
+    return function(lines, regtype)
+      vim.rpcnotify(channel_id, "neovide.set_clipboard", lines, regtype, register)
+    end
+  end
+
+  local function paste(register)
+    return function()
+      return vim.rpcrequest(channel_id, "neovide.get_clipboard", register)
+    end
+  end
+
+  return {
+    name = "neovide",
+    copy = {
+      ["+"] = copy("+"),
+      ["*"] = copy("*"),
+    },
+    paste = {
+      ["+"] = paste("+"),
+      ["*"] = paste("*"),
+    },
+    cache_enabled = 0,
+  }
+end
+
+local function prepare_local_clipboard_bridge()
+  if vim.g.neovide ~= true or vim.g.neovide_no_custom_clipboard then
+    return
+  end
+
+  local clipboard = vim.g.clipboard
+  if not (type(clipboard) == "table" and string.lower(tostring(clipboard.name or "")) == "neovide") then
+    local neovide_clipboard = build_neovide_clipboard()
+    if neovide_clipboard then
+      vim.g.clipboard = neovide_clipboard
+    end
+  end
+
+  vim.g.loaded_clipboard_provider = nil
+  pcall(vim.cmd, "runtime autoload/provider/clipboard.vim")
+end
+
 local function launch_terminal_client(port)
+  prepare_local_clipboard_bridge()
   require("remote-nvim.ui").float_term(("nvim --server localhost:%s --remote-ui"):format(port), function(exit_code)
     if exit_code ~= 0 then
       vim.notify(("Local client failed with exit code %s"):format(exit_code), vim.log.levels.ERROR)
