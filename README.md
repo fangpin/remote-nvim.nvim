@@ -396,15 +396,18 @@ remote-nvim.nvim")
 
 ## 🤖 Available commands
 
-| Command            | What does it do?                                                                                                                                            |
-| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `:RemoteStart`     | Connect to a remote instance. If remote neovim server is already running, allows users to launch local client?                                              |
-| `:RemoteStop`      | Stop running Neovim server and close session                                                                                                                |
-| `:RemoteInfo`      | Get information about any sessions created in the current Neovim run. Opens up the Progress Viewer.                                                         |
-| `:RemoteCleanup`   | Delete workspace and/or entire remote neovim setup from the remote instance. Also, cleanups the configuration for the remote resource.                      |
-| `:RemoteConfigDel`     | Delete record of remote instance that no longer exists from saved session records. Prefer `:RemoteCleanup` if you can still connect to the remote instance. |
-| `:RemoteLog`           | Open the plugin log file. This is most useful when debugging. `:RemoteInfo` should surface all information needed. If not, open an issue.                   |
-| `:RemoteClipboardCheck` | Diagnose clipboard setup for an active remote session, including OSC 52 availability, provider state, and attached UI count.                              |
+| Command                 | What does it do?                                                                                                                                            |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `:RemoteStart`          | Connect to a remote instance. If remote neovim server is already running, allows users to launch local client?                                              |
+| `:RemoteStop`           | Stop running Neovim server and close session                                                                                                                |
+| `:RemoteInfo`           | Get information and Runtime diagnostics about any sessions created in the current Neovim run. Opens up the Progress Viewer.                                 |
+| `:RemoteCleanup`        | Delete workspace and/or entire remote neovim setup from the remote instance. Also, cleanups the configuration for the remote resource.                      |
+| `:RemoteConfigDel`      | Delete record of remote instance that no longer exists from saved session records. Prefer `:RemoteCleanup` if you can still connect to the remote instance. |
+| `:RemoteLog`            | Open the plugin log file. This is most useful when debugging. `:RemoteInfo` should surface all information needed. If not, open an issue.                   |
+| `:RemoteClipboardCheck` | Diagnose clipboard setup for an active remote session, including OSC 52 availability, provider state, and attached UI count.                                |
+| `:RemoteDetach`         | Detach an active SSH session while leaving the remote Neovim server running.                                                                                |
+| `:RemoteReattach`       | Reconnect to a detached SSH session after validating the remote server.                                                                                     |
+| `:RemoteKillDetached`   | Kill or clear a detached SSH session record.                                                                                                                |
 
 For demos about the commands, see the [demos](#-demos) section.
 
@@ -437,6 +440,14 @@ require("remote-nvim").setup({
 
 This is a best-effort reconnect: the plugin relaunches the workspace and local client. It does not yet keep the remote
 Neovim server alive independently from the SSH tunnel.
+
+### Detached SSH sessions
+
+SSH sessions can be detached explicitly with `:RemoteDetach`. Detach stops the local forwarding job and client, but keeps the remote headless Neovim server running. Use `:RemoteReattach` to validate the saved PID and remote port, recreate the local tunnel, and launch the local client again.
+
+Detached sessions are stored under `stdpath("data")/remote-nvim/detached.json`. If validation fails, the record is marked stale. Use `:RemoteKillDetached` to kill a detached server or clear a stale record.
+
+Detach is SSH-only in this release. Devpod, Docker image, and Docker container sessions report a clear unsupported-provider warning.
 
 ### Local clipboard in the terminal client
 
