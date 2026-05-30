@@ -191,6 +191,171 @@ local function complete_running_sessions(_, line)
   return vim.fn.matchfuzzy(running_sessions, completion_word)
 end
 
+function M._detached_registry()
+  return require("remote-nvim.detached_registry")()
+end
+
+local function get_detached_records()
+  return M._detached_registry():get_all()
+end
+
+local function get_detached_record(host_id)
+  local record = M._detached_registry():get(host_id)
+  if vim.tbl_isempty(record) then
+    vim.notify(("No detached remote session to '%s' found"):format(host_id), vim.log.levels.WARN)
+    return nil
+  end
+  return record
+end
+
+local function complete_detached_sessions(_, line)
+  local args = vim.split(vim.trim(line), "%s+")
+  table.remove(args, 1)
+
+  local detached_sessions = vim.tbl_keys(get_detached_records())
+  table.sort(detached_sessions)
+
+  if #args == 0 then
+    return detached_sessions
+  end
+  local host_ids = vim.fn.filter(detached_sessions, function(_, item)
+    return not vim.tbl_contains(args, item)
+  end)
+  local completion_word = table.remove(args, #args)
+
+  -- If we have not provided any input, then the last word is the last completion
+  if vim.tbl_contains(detached_sessions, completion_word) then
+    return host_ids
+  end
+  return vim.fn.matchfuzzy(host_ids, completion_word)
+end
+
+local function get_session_for_detached_record(host_id, record)
+  return remote_nvim.session_provider:get_or_initialize_session({
+    host = record.host,
+    provider_type = record.provider,
+    conn_opts = { record.connection_options },
+    unique_host_id = host_id,
+    working_dir = record.working_dir,
+  })
+end
+
+function M.RemoteDetach(opts)
+  local host_ids = vim.split(vim.trim(opts.args), "%s+")
+  local sessions, running_sessions = get_running_sessions()
+
+  if #host_ids == 1 and vim.trim(host_ids[1]) ~= "" then
+    local host_id = host_ids[1]
+    local session = sessions[host_id]
+
+    if session == nil or not session:is_remote_server_running() then
+      vim.notify(("No active remote session to '%s' found"):format(host_id), vim.log.levels.WARN)
+    else
+      session:detach_neovim()
+    end
+  elseif #host_ids > 1 then
+    vim.notify("Please pass only one host at a time", vim.log.levels.WARN)
+    return
+  elseif (#vim.tbl_keys(sessions) == 0) or #running_sessions == 0 then
+    vim.notify("No active sessions found. Please start remote session(s) with :RemoteStart first", vim.log.levels.WARN)
+    return
+  elseif #running_sessions == 1 then
+    sessions[running_sessions[1]]:detach_neovim()
+  else
+    vim.ui.select(running_sessions, {
+      prompt = "Choose active session that needs to be detached",
+    }, function(choice)
+      if choice == nil then
+        vim.notify("No session selected")
+      else
+        sessions[choice]:detach_neovim()
+      end
+    end)
+  end
+end
+
+vim.api.nvim_create_user_command("RemoteDetach", M.RemoteDetach, {
+  desc = "Detach running Remote Neovim launched Neovim server",
+  nargs = "?",
+  complete = complete_running_sessions,
+})
+
+function M.RemoteReattach(opts)
+  local host_ids = vim.split(vim.trim(opts.args), "%s+")
+  local detached_records = get_detached_records()
+
+  if #host_ids == 1 and vim.trim(host_ids[1]) ~= "" then
+    local host_id = host_ids[1]
+    local record = get_detached_record(host_id)
+    if record then
+      get_session_for_detached_record(host_id, record):reattach_neovim(record)
+    end
+  elseif #host_ids > 1 then
+    vim.notify("Please pass only one host at a time", vim.log.levels.WARN)
+    return
+  elseif vim.tbl_isempty(detached_records) then
+    vim.notify("No detached sessions found", vim.log.levels.WARN)
+    return
+  else
+    local detached_sessions = vim.tbl_keys(detached_records)
+    table.sort(detached_sessions)
+    vim.ui.select(detached_sessions, {
+      prompt = "Choose detached session to reattach",
+    }, function(choice)
+      if choice == nil then
+        vim.notify("No session selected")
+      else
+        local record = detached_records[choice]
+        get_session_for_detached_record(choice, record):reattach_neovim(record)
+      end
+    end)
+  end
+end
+
+vim.api.nvim_create_user_command("RemoteReattach", M.RemoteReattach, {
+  desc = "Reattach a detached Remote Neovim session",
+  nargs = "?",
+  complete = complete_detached_sessions,
+})
+
+function M.RemoteKillDetached(opts)
+  local host_ids = vim.split(vim.trim(opts.args), "%s+")
+  local detached_records = get_detached_records()
+
+  if #host_ids == 1 and vim.trim(host_ids[1]) ~= "" then
+    local host_id = host_ids[1]
+    local record = get_detached_record(host_id)
+    if record then
+      get_session_for_detached_record(host_id, record):kill_detached_neovim(record)
+    end
+  elseif #host_ids > 1 then
+    vim.notify("Please pass only one host at a time", vim.log.levels.WARN)
+    return
+  elseif vim.tbl_isempty(detached_records) then
+    vim.notify("No detached sessions found", vim.log.levels.WARN)
+    return
+  else
+    local detached_sessions = vim.tbl_keys(detached_records)
+    table.sort(detached_sessions)
+    vim.ui.select(detached_sessions, {
+      prompt = "Choose detached session to kill or clear",
+    }, function(choice)
+      if choice == nil then
+        vim.notify("No session selected")
+      else
+        local record = detached_records[choice]
+        get_session_for_detached_record(choice, record):kill_detached_neovim(record)
+      end
+    end)
+  end
+end
+
+vim.api.nvim_create_user_command("RemoteKillDetached", M.RemoteKillDetached, {
+  desc = "Kill or clear a detached Remote Neovim session",
+  nargs = "?",
+  complete = complete_detached_sessions,
+})
+
 vim.api.nvim_create_user_command("RemoteStop", function(opts)
   local host_ids = vim.split(vim.trim(opts.args), "%s+")
   local sessions, running_sessions = get_running_sessions()

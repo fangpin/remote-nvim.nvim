@@ -85,6 +85,46 @@ describe("Remote Neovim commands", function()
     package.loaded["remote-nvim.command"] = nil
   end)
 
+  it("detaches one running SSH session", function()
+    sessions.host1 = make_session({ port = 1234 })
+    sessions.host1.detach_neovim = stub()
+
+    command.RemoteDetach({ args = "host1" })
+
+    assert.stub(sessions.host1.detach_neovim).was.called()
+  end)
+
+  it("reattaches a detached session from the registry", function()
+    local registry = require("remote-nvim.detached_registry")()
+    local get_stub = stub(registry, "get").returns({ provider = "ssh", host = "host1", status = "detached" })
+    local detached_registry_stub = stub(command, "_detached_registry").returns(registry)
+    local session = { reattach_neovim = stub() }
+    remote_nvim.session_provider.get_or_initialize_session = stub().returns(session)
+
+    command.RemoteReattach({ args = "host1" })
+
+    assert.stub(remote_nvim.session_provider.get_or_initialize_session).was.called()
+    assert.stub(session.reattach_neovim).was.called()
+
+    get_stub:revert()
+    detached_registry_stub:revert()
+  end)
+
+  it("kills a detached session", function()
+    local registry = require("remote-nvim.detached_registry")()
+    local get_stub = stub(registry, "get").returns({ provider = "ssh", host = "host1", status = "detached", remote_pid = "4567" })
+    local detached_registry_stub = stub(command, "_detached_registry").returns(registry)
+    local session = { kill_detached_neovim = stub() }
+    remote_nvim.session_provider.get_or_initialize_session = stub().returns(session)
+
+    command.RemoteKillDetached({ args = "host1" })
+
+    assert.stub(session.kill_detached_neovim).was.called()
+
+    get_stub:revert()
+    detached_registry_stub:revert()
+  end)
+
   it("warns when no running sessions exist", function()
     run("")
 
