@@ -442,9 +442,10 @@ Neovim server alive independently from the SSH tunnel.
 The default local client is `nvim --remote-ui`, even when `:RemoteStart` is run from Neovide. This keeps the terminal UI
 behavior for scrolling, fonts, and rendering while still allowing remote yanks to reach the local clipboard.
 
-To make that work, the remote server installs a small startup hook that uses Neovim's built-in OSC 52 clipboard provider
-for terminal UI clients. This means yanking with `yy`, visual mode `y`, or any operation that writes to the `+` register
-can update the local clipboard without requiring clipboard tools on the remote host.
+To make that work, the remote server installs a small startup hook that uses a copy-only OSC 52 clipboard provider for
+terminal UI clients. This means yanking with `yy`, visual mode `y`, or any operation that writes to the `+` register can
+update the local clipboard without requiring clipboard tools on the remote host. Paste falls back to the most recent
+cached yank instead of querying the terminal clipboard, since many terminals do not support OSC 52 reads.
 
 If you override `client_callback` to launch a GUI client such as Neovide, the startup hook preserves Neovide's clipboard
 provider when it is available.

@@ -652,7 +652,7 @@ end
 ---Build remote startup command that enables local clipboard support after UI attach.
 ---@return string command Neovim --cmd command
 function Provider:_get_clipboard_setup_cmd()
-  return [=[lua vim.api.nvim_create_autocmd("UIEnter", { callback = function() vim.defer_fn(function() local clipboard = vim.g.clipboard; if not (type(clipboard) == "table" and string.lower(tostring(clipboard.name or "")) == "neovide") then vim.g.clipboard = "osc52"; end vim.opt.clipboard = "unnamedplus"; vim.g.loaded_clipboard_provider = nil; vim.cmd("runtime autoload/provider/clipboard.vim"); end, 100) end })]=]
+  return [=[lua vim.api.nvim_create_autocmd("UIEnter", { callback = function() vim.defer_fn(function() local clipboard = vim.g.clipboard; if not (type(clipboard) == "table" and string.lower(tostring(clipboard.name or "")) == "neovide") then local osc52 = require("vim.ui.clipboard.osc52"); local cache = {}; local function copy(reg) return function(lines, regtype) cache[reg] = { lines, regtype }; osc52.copy(reg)(lines) end end; local function paste(reg) return function() return cache[reg] or { {}, "v" } end end; vim.g.clipboard = { name = "remote-nvim OSC 52", copy = { ["+"] = copy("+"), ["*"] = copy("*") }, paste = { ["+"] = paste("+"), ["*"] = paste("*") }, cache_enabled = 0 }; end vim.opt.clipboard = "unnamedplus"; vim.g.loaded_clipboard_provider = nil; vim.cmd("runtime autoload/provider/clipboard.vim"); end, 100) end })]=]
 end
 
 ---@private
