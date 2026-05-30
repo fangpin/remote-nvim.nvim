@@ -172,6 +172,10 @@ describe("Provider", function()
       assert.equals(("%s/scripts/neovim_install.sh"):format(remote_home), provider._remote_neovim_install_script_path)
       assert.equals(("%s/scripts/neovim_download.sh"):format(remote_home), provider._remote_neovim_download_script_path)
       assert.equals(("%s/scripts/utils/neovim.sh"):format(remote_home), provider._remote_neovim_utils_script_path)
+      assert.equals(
+        ("%s/scripts/.remote-nvim-scripts.sha256"):format(remote_home),
+        provider._remote_scripts_checksum_path
+      )
       assert.equals(("%s/workspaces/%s"):format(remote_home, workspace_id), provider._remote_workspace_id_path)
 
       -- XDG variables
@@ -582,6 +586,56 @@ describe("Provider", function()
     assert.is_true(provider._provider_stopped_neovim)
   end)
 
+  describe("should handle reconnect correctly", function()
+    local defer_fn_stub
+
+    before_each(function()
+      remote_nvim.config.remote.reconnect = {
+        enabled = true,
+        max_attempts = 2,
+        backoff_ms = 100,
+      }
+      defer_fn_stub = stub(vim, "defer_fn")
+    end)
+
+    it("by scheduling reconnect for unexpected remote server exits", function()
+      provider._remote_server_process_id = 10
+      provider._local_free_port = 1234
+
+      assert.is_true(provider:_schedule_reconnect(255))
+
+      assert.equals(1, provider._reconnect_attempt)
+      assert.is_nil(provider._remote_server_process_id)
+      assert.is_nil(provider._local_free_port)
+      assert.stub(defer_fn_stub).was.called_with(match.is_function(), 100)
+    end)
+
+    it("by not scheduling reconnect when explicitly stopped by the user", function()
+      provider._provider_stopped_neovim = true
+
+      assert.is_false(provider:_schedule_reconnect(255))
+
+      assert.equals(0, provider._reconnect_attempt)
+      assert.stub(defer_fn_stub).was.not_called()
+    end)
+
+    it("by not scheduling reconnect once max attempts are exhausted", function()
+      provider._reconnect_attempt = 2
+
+      assert.is_false(provider:_schedule_reconnect(255))
+
+      assert.equals(2, provider._reconnect_attempt)
+      assert.stub(defer_fn_stub).was.not_called()
+    end)
+
+    it("by not scheduling reconnect for clean remote server exits", function()
+      assert.is_false(provider:_schedule_reconnect(0))
+
+      assert.equals(0, provider._reconnect_attempt)
+      assert.stub(defer_fn_stub).was.not_called()
+    end)
+  end)
+
   describe("should determine correctly if remote server is running", function()
     it("when we do not have a registered process id", function()
       provider._remote_server_process_id = nil
@@ -701,6 +755,22 @@ describe("Provider", function()
           match.is_string(),
           remote_nvim.config.remote.copy_dirs.config.compression
         )
+      end)
+
+      it("when plugin scripts are already current on remote", function()
+        local scripts_checksum = provider:_get_local_plugin_scripts_checksum()
+        stub(provider.executor, "job_stdout").returns({ scripts_checksum })
+
+        provider:_setup_remote()
+
+        assert
+          .stub(upload_stub).was_not
+          .called_with(
+            match.is_ref(provider),
+            require("plenary.path"):new("scripts"):absolute(),
+            "~/.remote-nvim",
+            match.is_string()
+          )
       end)
 
       it("when we do not want to copy config", function()

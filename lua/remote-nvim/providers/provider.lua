@@ -35,6 +35,7 @@
 ---@field private _setup_running boolean Is the setup running?
 ---@field private _neovim_launch_number number Active run number
 ---@field private _cleanup_run_number number Active run number
+---@field private _reconnect_attempt number Number of attempted reconnects for the current disconnection
 ---@field private _local_free_port string? Free port available on local machine
 ---@field private _local_neovim_install_script_path string Local path where Neovim installation script is stored
 ---@field private _local_path_to_remote_neovim_config string[] Local path(s) containing remote Neovim configuration
@@ -57,6 +58,7 @@
 ---@field private _remote_neovim_install_script_path  string Get Neovim installation script path on the remote host
 ---@field private _remote_neovim_download_script_path  string Get Neovim download script path on the remote host
 ---@field private _remote_neovim_utils_script_path  string Get Neovim utils script path on the remote host
+---@field private _remote_scripts_checksum_path  string Path to the remote scripts checksum marker
 ---@field private _remote_server_process_id  integer? Process ID of the remote server job
 ---@field protected _remote_working_dir string? Working directory on the remote server
 local Provider = require("remote-nvim.middleclass")("Provider")
@@ -118,6 +120,7 @@ function Provider:init(opts)
   self.progress_viewer = opts.progress_view
   self._cleanup_run_number = 1
   self._neovim_launch_number = 1
+  self._reconnect_attempt = 0
 
   -- Remote configuration parameters
   opts.devpod_opts = opts.devpod_opts or {}
@@ -220,6 +223,8 @@ function Provider:_setup_workspace_variables()
     utils.path_join(self._remote_is_windows, self._remote_scripts_path, "neovim_download.sh")
   self._remote_neovim_utils_script_path =
     utils.path_join(self._remote_is_windows, self._remote_scripts_path, "utils/neovim.sh")
+  self._remote_scripts_checksum_path =
+    utils.path_join(self._remote_is_windows, self._remote_scripts_path, ".remote-nvim-scripts.sha256")
   self._remote_workspace_id_path =
     utils.path_join(self._remote_is_windows, self._remote_workspaces_path, self._remote_workspace_id)
 
@@ -314,6 +319,77 @@ function Provider:_reset()
   self._remote_server_process_id = nil
   self._local_free_port = nil
   self._provider_stopped_neovim = false
+end
+
+---@private
+---Should the provider reconnect after a remote server exit?
+---@param exit_code number Exit code from the remote server job
+---@return boolean should_reconnect Should a reconnect be attempted?
+function Provider:_should_reconnect(exit_code)
+  local reconnect = remote_nvim.config.remote.reconnect or {}
+  return reconnect.enabled
+    and exit_code ~= 0
+    and not self._provider_stopped_neovim
+    and self._reconnect_attempt < reconnect.max_attempts
+end
+
+---@private
+---Schedule reconnect for a dropped remote server connection.
+---@param exit_code number Exit code from the remote server job
+---@return boolean scheduled Was reconnect scheduled?
+function Provider:_schedule_reconnect(exit_code)
+  if not self:_should_reconnect(exit_code) then
+    return false
+  end
+
+  local reconnect = remote_nvim.config.remote.reconnect
+  self._reconnect_attempt = self._reconnect_attempt + 1
+  local delay = reconnect.backoff_ms * self._reconnect_attempt
+
+  self._remote_server_process_id = nil
+  self._local_free_port = nil
+  vim.notify(
+    ("Remote Neovim disconnected with exit code %s. Reconnecting in %sms (attempt %s/%s)"):format(
+      exit_code,
+      delay,
+      self._reconnect_attempt,
+      reconnect.max_attempts
+    ),
+    vim.log.levels.WARN
+  )
+
+  vim.defer_fn(function()
+    if self._provider_stopped_neovim then
+      return
+    end
+
+    self:_run_code_in_coroutine(function()
+      self:_launch_neovim(false)
+    end, "Reconnecting to remote Neovim")
+  end, delay)
+
+  return true
+end
+
+---@private
+---Handle the remote server job exiting.
+---@param exit_code number Exit code from the remote server job
+---@param node NuiTree.Node Progress node for the launch command
+function Provider:_handle_remote_server_exit(exit_code, node)
+  local reconnect_scheduled = self:_schedule_reconnect(exit_code)
+  local success_code = (exit_code == 0 or self._provider_stopped_neovim or reconnect_scheduled)
+  self.progress_viewer:update_status(success_code and "success" or "failed", true, node)
+  if not success_code then
+    self:show_progress_view_window()
+  end
+
+  if not self._provider_stopped_neovim and not reconnect_scheduled then
+    self:stop_neovim()
+  end
+
+  if not reconnect_scheduled then
+    self:_reset()
+  end
 end
 
 ---@protected
@@ -573,6 +649,79 @@ function Provider:_remote_neovim_binary_dir()
 end
 
 ---@private
+---Get checksum for the plugin scripts that need to be present on the remote.
+---@return string checksum Local scripts checksum
+function Provider:_get_local_plugin_scripts_checksum()
+  local default_script_dir = vim.fn.fnamemodify(remote_nvim.default_opts.neovim_install_script_path, ":h:p")
+  if not default_script_dir:match("/$") then
+    default_script_dir = default_script_dir .. "/"
+  end
+
+  local all_scripts = vim.fs.find(function()
+    return true
+  end, {
+    limit = math.huge,
+    type = "file",
+    path = default_script_dir,
+  })
+  table.sort(all_scripts)
+
+  local checksum_parts = {}
+  for _, path in ipairs(all_scripts) do
+    local filepath = vim.fn.fnamemodify(path, ":p")
+    local relative_path = filepath:gsub("^" .. vim.pesc(default_script_dir), "")
+    local contents = table.concat(vim.fn.readfile(filepath, "b"), "\n")
+    table.insert(checksum_parts, ("%s:%s"):format(relative_path, vim.fn.sha256(contents)))
+  end
+
+  if remote_nvim.default_opts.neovim_install_script_path ~= remote_nvim.config.neovim_install_script_path then
+    local custom_script_path = vim.fn.fnamemodify(remote_nvim.config.neovim_install_script_path, ":p")
+    local contents = table.concat(vim.fn.readfile(custom_script_path, "b"), "\n")
+    table.insert(
+      checksum_parts,
+      ("custom/%s:%s"):format(vim.fn.fnamemodify(custom_script_path, ":t"), vim.fn.sha256(contents))
+    )
+  end
+
+  return vim.fn.sha256(table.concat(checksum_parts, "\n"))
+end
+
+---@private
+---Sync plugin scripts only when local script contents changed.
+function Provider:_sync_plugin_scripts()
+  local local_scripts_checksum = self:_get_local_plugin_scripts_checksum()
+  self:run_command(
+    ("test -f %s && cat %s || true"):format(self._remote_scripts_checksum_path, self._remote_scripts_checksum_path),
+    "Checking plugin scripts on remote"
+  )
+
+  local remote_scripts_checksum = table.concat(self.executor:job_stdout(), "\n"):match("(%x+)%s*$")
+  if remote_scripts_checksum == local_scripts_checksum then
+    return
+  end
+
+  self:upload(
+    vim.fn.fnamemodify(remote_nvim.default_opts.neovim_install_script_path, ":h"),
+    self._remote_neovim_home,
+    "Copying plugin scripts onto remote"
+  )
+
+  ---If we have custom scripts specified, copy them over
+  if remote_nvim.default_opts.neovim_install_script_path ~= remote_nvim.config.neovim_install_script_path then
+    self:upload(
+      remote_nvim.config.neovim_install_script_path,
+      self._remote_scripts_path,
+      "Copying custom install scripts specified by user"
+    )
+  end
+
+  self:run_command(
+    ("printf %%s %s > %s"):format(local_scripts_checksum, self._remote_scripts_checksum_path),
+    "Saving plugin scripts checksum on remote"
+  )
+end
+
+---@private
 ---Setup remote
 function Provider:_setup_remote()
   if not self._setup_running then
@@ -593,21 +742,7 @@ function Provider:_setup_remote()
     end
     self:run_command(table.concat(mkdirs_cmds, " && "), "Creating custom neovim directories on remote")
 
-    -- Copy things required on remote
-    self:upload(
-      vim.fn.fnamemodify(remote_nvim.default_opts.neovim_install_script_path, ":h"),
-      self._remote_neovim_home,
-      "Copying plugin scripts onto remote"
-    )
-
-    ---If we have custom scripts specified, copy them over
-    if remote_nvim.default_opts.neovim_install_script_path ~= remote_nvim.config.neovim_install_script_path then
-      self:upload(
-        remote_nvim.config.neovim_install_script_path,
-        self._remote_scripts_path,
-        "Copying custom install scripts specified by user"
-      )
-    end
+    self:_sync_plugin_scripts()
 
     local default_script_dir = vim.fn.fnamemodify(remote_nvim.default_opts.neovim_install_script_path, ":h:p")
     if not default_script_dir:match("/$") then
@@ -774,17 +909,7 @@ function Provider:_launch_remote_neovim_server()
         port_forward_opts,
         function(node)
           return function(exit_code)
-            local success_code = (exit_code == 0 or self._provider_stopped_neovim)
-            self.progress_viewer:update_status(success_code and "success" or "failed", true, node)
-            if not success_code then
-              self:show_progress_view_window()
-            end
-
-            if not self._provider_stopped_neovim then
-              self:stop_neovim()
-            end
-
-            self:_reset()
+            self:_handle_remote_server_exit(exit_code, node)
           end
         end
       )
@@ -913,6 +1038,10 @@ function Provider:_launch_neovim(start_run)
   if start_run == nil then
     start_run = true
   end
+  self._provider_stopped_neovim = false
+  if start_run then
+    self._reconnect_attempt = 0
+  end
   self.logger.fmt_debug(("[%s][%s] Starting remote neovim launch"):format(self.provider_type, self.unique_host_id))
   if not self:is_remote_server_running() then
     if start_run then
@@ -938,9 +1067,9 @@ end
 ---Stop running Neovim instance (if any)
 ---@param cb function? Callback to invoke on stopping Neovim instance
 function Provider:stop_neovim(cb)
+  self._provider_stopped_neovim = true
   if self:is_remote_server_running() then
     vim.fn.jobstop(self._remote_server_process_id)
-    self._provider_stopped_neovim = true
   end
 
   if cb ~= nil then

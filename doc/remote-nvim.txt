@@ -232,6 +232,11 @@ value.
       -- Remote configuration
       remote = {
         app_name = "nvim", -- This directly maps to the value NVIM_APPNAME. If you use any other paths for configuration, also make sure to set this.
+        reconnect = {
+          enabled = false, -- Automatically relaunch the remote Neovim session if the SSH job exits unexpectedly.
+          max_attempts = 5, -- Maximum reconnect attempts for a single unexpected disconnect.
+          backoff_ms = 2000, -- Base delay between reconnect attempts. The delay increases by this value on each attempt.
+        },
         -- List of directories that should be copied over
         copy_dirs = {
           -- What to copy to remote's Neovim config directory
@@ -433,6 +438,30 @@ language servers discover project files such as `go.mod`.
 
 Leave the prompt blank to keep the remote shell’s default startup directory,
 usually `$HOME`.
+
+
+AUTOMATIC RECONNECT ~
+
+`remote.reconnect` can automatically relaunch the current workspace when the
+remote Neovim SSH job exits unexpectedly, for example after a transient network
+drop. It does not trigger when you explicitly stop the session with
+`:RemoteStop`.
+
+>lua
+    require("remote-nvim").setup({
+      remote = {
+        reconnect = {
+          enabled = true,
+          max_attempts = 5,
+          backoff_ms = 2000,
+        },
+      },
+    })
+<
+
+This is a best-effort reconnect: the plugin relaunches the workspace and local
+client. It does not yet keep the remote Neovim server alive independently from
+the SSH tunnel.
 
 
 INTEGRATION WITH STATUSLINE          *remote-nvim-integration-with-statusline*

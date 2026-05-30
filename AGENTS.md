@@ -21,7 +21,7 @@ Primary code areas:
 - Follow the existing Lua style and class patterns.
 - Prefer updating tests next to the changed behavior.
 - Do not rewrite generated-looking documentation broadly; make targeted edits.
-- After code changes, especially functional changes, assess whether `README.md` or `AGENTS.md` should be updated.
+- After every code change, especially functional changes, re-review `README.md` and `AGENTS.md` to decide whether they need updates.
 - If user-facing configuration or requirements change, update both `README.md` and `doc/remote-nvim.txt`.
 - Historical release entries in `CHANGELOG.md` should generally not be edited.
 
