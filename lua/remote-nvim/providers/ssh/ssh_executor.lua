@@ -129,6 +129,20 @@ function SSHExecutor:start_port_forward(local_port, remote_port, job_opts)
   return self:run_executor_job(("%s %s"):format(self.ssh_binary, host_conn_opts), job_opts)
 end
 
+---Start a command in the background on the remote host and write its remote shell PID to a pidfile.
+---@param command string Command to start on the remote host
+---@param pidfile string Remote pidfile path
+---@param job_opts remote-nvim.provider.Executor.JobOpts?
+function SSHExecutor:run_detached_server_command(command, pidfile, job_opts)
+  job_opts = job_opts or {}
+  local detached_command = ("rm -f %s; nohup sh -c %s >/dev/null 2>&1 & printf %%s $! > %s"):format(
+    pidfile,
+    vim.fn.shellescape("exec " .. command),
+    pidfile
+  )
+  return self:run_executor_job(self:_build_run_command(detached_command, job_opts), job_opts)
+end
+
 ---@private
 ---Handle when the SSH job requires a job input
 ---@param prompt remote-nvim.config.PluginConfig.SSHConfig.SSHPrompt

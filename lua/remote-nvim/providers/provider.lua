@@ -1102,20 +1102,52 @@ function Provider:_launch_remote_neovim_server()
       )
     end
 
-    self:_run_code_in_coroutine(function()
-      self:run_command(
-        remote_server_launch_cmd,
-        "Launching Neovim server on the remote machine",
-        port_forward_opts,
-        function(node)
-          return function(exit_code)
-            self:_handle_remote_server_exit(exit_code, node)
+    if self.executor.start_port_forward ~= nil then
+      local section_node = self.progress_viewer:add_progress_node({
+        text = "Launching Neovim server on the remote machine",
+        type = "section_node",
+      })
+      self.progress_viewer:add_progress_node({
+        text = remote_server_launch_cmd,
+        type = "command_node",
+      }, section_node)
+      self.executor:run_detached_server_command(remote_server_launch_cmd, remote_pidfile_path, {
+        stdout_cb = self:_get_stdout_fn_for_node(section_node),
+      })
+      self:_handle_job_completion("Launching Neovim server on the remote machine", section_node)
+
+      local tunnel_node = self.progress_viewer:add_progress_node({
+        text = "Starting local port forwarding tunnel",
+        type = "section_node",
+      })
+      self.progress_viewer:add_progress_node({
+        text = ("FORWARD localhost:%s -> localhost:%s"):format(self._local_free_port, remote_free_port),
+        type = "command_node",
+      }, tunnel_node)
+      self.executor:start_port_forward(self._local_free_port, remote_free_port, {
+        exit_cb = function(exit_code)
+          self:_handle_remote_server_exit(exit_code, tunnel_node)
+        end,
+        stdout_cb = self:_get_stdout_fn_for_node(tunnel_node),
+      })
+      self._remote_server_process_id = self.executor:last_job_id()
+      self:_refresh_runtime_diagnostics()
+    else
+      self:_run_code_in_coroutine(function()
+        self:run_command(
+          remote_server_launch_cmd,
+          "Launching Neovim server on the remote machine",
+          port_forward_opts,
+          function(node)
+            return function(exit_code)
+              self:_handle_remote_server_exit(exit_code, node)
+            end
           end
-        end
-      )
-      vim.notify("Remote server stopped", vim.log.levels.INFO)
-    end, "Launching Remote Neovim server")
-    self._remote_server_process_id = self.executor:last_job_id()
+        )
+        vim.notify("Remote server stopped", vim.log.levels.INFO)
+      end, "Launching Remote Neovim server")
+      self._remote_server_process_id = self.executor:last_job_id()
+    end
     self:run_command(("test -f %s && cat %s || true"):format(remote_pidfile_path, remote_pidfile_path), "Reading remote Neovim server PID")
     local remote_pid_output = self.executor:job_stdout()
     self._remote_server_pid = remote_pid_output[#remote_pid_output]
@@ -1321,10 +1353,14 @@ function Provider:detach_neovim()
     return
   end
 
+  local remote_server_process_id = self._remote_server_process_id
   self:_detached_registry():upsert(self.unique_host_id, self:_detached_record("detached"))
+  self._detached_state = "detached"
+  if remote_server_process_id ~= nil then
+    vim.fn.jobstop(remote_server_process_id)
+  end
   self._remote_server_process_id = nil
   self._local_free_port = nil
-  self._detached_state = "detached"
   self:_refresh_runtime_diagnostics()
   vim.notify(("Detached remote Neovim session '%s'"):format(self.unique_host_id), vim.log.levels.INFO)
 end

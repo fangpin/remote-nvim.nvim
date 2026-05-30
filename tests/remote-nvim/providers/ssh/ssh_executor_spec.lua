@@ -141,6 +141,16 @@ describe("SSH Executor", function()
     )
   end)
 
+  it("runs a remote command detached and records its pidfile", function()
+    executor:run_detached_server_command("nvim --listen 0.0.0.0:32123 --headless", "~/.remote-nvim/workspace/nvim.pid")
+
+    assert.stub(executor_run_job_stub).was.called_with(
+      match.is_ref(executor),
+      match.matches("ssh remote%-host 'rm %-f ~/.remote%-nvim/workspace/nvim%.pid; nohup sh %-c .*exec nvim %-%-listen 0%.0%.0%.0:32123 %-%-headless.* > ~/.remote%-nvim/workspace/nvim%.pid'"),
+      match.is_table()
+    )
+  end)
+
   describe("should correctly run command job with correct arguments", function()
     it("for simple commands", function()
       executor:run_command("uname")

@@ -616,7 +616,7 @@ describe("Provider", function()
     assert.are.same("32123", record.remote_port)
     assert.are.same("4567", record.remote_pid)
     assert.are.same("localhost:32123", record.remote_servername)
-    assert.stub(job_stop_stub).was.not_called()
+    assert.stub(job_stop_stub).was.called_with(99)
     assert.is_nil(provider._remote_server_process_id)
     assert.is_nil(provider._local_free_port)
     assert.are.same("detached", provider._detached_state)
@@ -1125,6 +1125,36 @@ describe("Provider", function()
           "-t -L 52232:localhost:32123",
           match.is_function()
         )
+      end)
+
+      it("for SSH by launching the remote server detached before starting a forwarding tunnel", function()
+        provider.executor.run_detached_server_command = function() end
+        local run_detached_server_command_stub = stub(provider.executor, "run_detached_server_command")
+        local start_port_forward_stub = stub(provider.executor, "start_port_forward")
+        local last_job_status_stub = stub(provider.executor, "last_job_status").returns(0)
+        local last_job_id_stub = stub(provider.executor, "last_job_id").returns(99)
+        provider.provider_type = "ssh"
+
+        provider:_launch_remote_neovim_server()
+
+        assert.stub(run_detached_server_command_stub).was.called_with(
+          match.is_ref(provider.executor),
+          match.matches("REMOTE_NVIM_PIDFILE=~/.remote%-nvim/workspaces/ajfdalfj/nvim%.pid.*nvim %-%-listen 0%.0%.0%.0:32123 %-%-headless"),
+          "~/.remote-nvim/workspaces/ajfdalfj/nvim.pid",
+          match.is_table()
+        )
+        assert.stub(start_port_forward_stub).was.called_with(match.is_ref(provider.executor), 52232, 32123, match.is_table())
+        assert.stub(run_command_stub).was.not_called_with(
+          match.is_ref(provider),
+          match.matches("nvim --listen"),
+          match.is_string(),
+          "-t -L 52232:localhost:32123",
+          match.is_function()
+        )
+        assert.equals(99, provider._remote_server_process_id)
+
+        last_job_status_stub:revert()
+        last_job_id_stub:revert()
       end)
 
       it("when a working directory is set", function()
