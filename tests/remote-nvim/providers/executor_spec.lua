@@ -30,6 +30,20 @@ describe("Base executor", function()
     assert.spy(cb).was_called()
   end)
 
+  it("does not yield when running detached jobs inside a coroutine", function()
+    local co = coroutine.create(function()
+      base_executor:run_executor_job("sleep 10", { detach = true })
+      return "continued"
+    end)
+
+    coroutine.resume(co)
+    local ok, result = coroutine.resume(co)
+
+    assert.is_true(ok)
+    assert.equals("continued", result)
+    base_executor:cancel_running_job()
+  end)
+
   describe("should return correct exit code", function()
     it("when job succeeds", function()
       base_executor:run_executor_job(succ_job_command)

@@ -123,6 +123,7 @@ end
 ---@param job_opts remote-nvim.provider.Executor.JobOpts?
 function SSHExecutor:start_port_forward(local_port, remote_port, job_opts)
   job_opts = job_opts or {}
+  job_opts.detach = true
   local forward_opts = ("-N -L %s:localhost:%s"):format(local_port, remote_port)
   local conn_opts = self.ssh_conn_opts == "" and forward_opts or (self.ssh_conn_opts .. " " .. forward_opts)
   local host_conn_opts = conn_opts == "" and self.host or conn_opts .. " " .. self.host

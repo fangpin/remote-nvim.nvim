@@ -71,8 +71,8 @@ end
 ---@param command string Command which should be started as a job
 ---@param job_opts remote-nvim.provider.Executor.JobOpts
 function Executor:run_executor_job(command, job_opts)
-  local co = coroutine.running()
   job_opts = job_opts or {}
+  local co = job_opts.detach and nil or coroutine.running()
 
   self:reset() -- Reset job internal state variables
   self._job_id = vim.fn.jobstart(command, {

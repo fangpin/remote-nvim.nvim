@@ -137,7 +137,7 @@ describe("SSH Executor", function()
     assert.stub(executor_run_job_stub).was.called_with(
       match.is_ref(executor),
       "ssh -N -L 12345:localhost:32123 remote-host",
-      match.is_table()
+      { detach = true }
     )
   end)
 
