@@ -36,6 +36,16 @@ describe("SSH Config parser should", function()
       assert.is_true(parsed_config["tantrum"] ~= nil)
       assert.stub(logger_stub).was_called()
     end)
+
+    it("when included paths contain quoted spaces", function()
+      parser:parse_config_file("./data/ISSUE-92/CASE-3/config", debug.getinfo(1, "S").source:sub(2))
+
+      assert.are.same({
+        HostName = "cloudide-space.example.com",
+        User = "test-user",
+      }, parser:get_config()["cloudide-space"].parsed_config)
+      assert.stub(logger_stub).was_not_called()
+    end)
   end)
 
   it("parse sample ssh config file", function()

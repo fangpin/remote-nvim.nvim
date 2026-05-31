@@ -1,0 +1,3 @@
+Host cloudide-space
+  HostName cloudide-space.example.com
+  User test-user

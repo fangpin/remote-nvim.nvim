@@ -116,44 +116,79 @@ function SSHConfigParser:_post_process_all_configs()
 end
 
 ---@private
+---@param path string Path to check
+---@return boolean
+local function is_absolute_path(path)
+  return path:match("^/") ~= nil or path:match("^%a:[/\\]") ~= nil or path:match("^[/\\][/\\]") ~= nil
+end
+
+---@private
+---@param raw_paths string Include path value from SSH config
+---@return string[] paths Path patterns with quotes removed and escaped spaces preserved
+local function split_include_paths(raw_paths)
+  local paths = {}
+  local current = {}
+  local quote = nil
+  local escaped = false
+
+  for idx = 1, #raw_paths do
+    local char = raw_paths:sub(idx, idx)
+
+    if escaped then
+      table.insert(current, char)
+      escaped = false
+    elseif char == "\\" then
+      escaped = true
+    elseif quote ~= nil then
+      if char == quote then
+        quote = nil
+      else
+        table.insert(current, char)
+      end
+    elseif char == '"' or char == "'" then
+      quote = char
+    elseif char:match("%s") then
+      if #current > 0 then
+        table.insert(paths, table.concat(current))
+        current = {}
+      end
+    else
+      table.insert(current, char)
+    end
+  end
+
+  if escaped then
+    table.insert(current, "\\")
+  end
+
+  if #current > 0 then
+    table.insert(paths, table.concat(current))
+  end
+
+  return paths
+end
+
+---@private
 ---Get correctly expanded path as per shell conventions
 ---@param path string Path specified in the config file
 ---@return string[] paths_to_parse List of files that should be parsed
 function SSHConfigParser:_expand_path(path, parent_file)
   local parent_dir = parent_file and vim.fs.normalize(vim.fs.dirname(parent_file))
-  local cmd = { "sh", "-c", ("echo %s"):format(path) }
+  local expanded_paths = {}
 
-  local res, cmd_output
-  if vim.fn.has("nvim-0.10") == 1 then
-    res = vim
-      .system(cmd, {
-        text = true,
-        cwd = parent_dir,
-      })
-      :wait()
-
-    if res.code ~= 0 then
-      self.logger.error(("Expanding path %s failed. Extra info: (SOURCE_FILE: %s)"):format(path, parent_file or "nil"))
-      vim.notify_once("Error while parsing SSH config files. Please check the logs using :RemoteLog")
-    else
-      ---@type string
-      cmd_output = res.stdout
+  for _, path_pattern in ipairs(split_include_paths(path)) do
+    local expanded_pattern = vim.fn.expand(path_pattern)
+    if parent_dir and not is_absolute_path(expanded_pattern) and not vim.startswith(expanded_pattern, "~") then
+      expanded_pattern = core_utils.path_join(core_utils.is_windows, parent_dir, expanded_pattern)
     end
-  else
-    local lines = {}
-    local job_id = vim.fn.jobstart(cmd, {
-      cwd = parent_dir,
-      on_stdout = function(_, data)
-        data = table.concat(data, ""):gsub("\r\n", "\n"):gsub("\n", "")
-        table.insert(lines, data)
-      end,
-      stdout_buffered = true,
-      stderr_buffered = true,
-    })
-    vim.fn.jobwait({ job_id })
-    cmd_output = table.concat(lines, " ")
+
+    local globbed_paths = vim.fn.glob(expanded_pattern, false, true)
+    if vim.tbl_isempty(globbed_paths) then
+      table.insert(expanded_paths, expanded_pattern)
+    else
+      vim.list_extend(expanded_paths, globbed_paths)
+    end
   end
-  local expanded_paths = vim.split(cmd_output, "%s+", { trimempty = true })
 
   local complete_paths = {}
   for _, found_path in ipairs(expanded_paths) do
