@@ -48,6 +48,13 @@ local remote_nvim = require("remote-nvim")
 ---@field private section_deque_map table<string, remote-nvim.structs.Deque> Deque to handle too much output
 local ProgressView = require("remote-nvim.middleclass")("ProgressView")
 
+---@private
+---@param text string? Text displayed in a single tree node
+---@return string text Text that is safe to pass to nvim_buf_set_lines
+local function sanitize_tree_node_text(text)
+  return (text or ""):gsub("\r\n", "\\n"):gsub("\r", "\\r"):gsub("\n", "\\n")
+end
+
 function ProgressView:init()
   local progress_view_config = remote_nvim.config.progress_view
   self.layout_type = progress_view_config.type
@@ -718,7 +725,7 @@ function ProgressView:_add_progress_view_section_heading(node, parent_node)
   end
 
   local section_node = NuiTree.Node({
-    text = node.text,
+    text = sanitize_tree_node_text(node.text),
     ---@type progress_view_node_type
     type = node.type,
   }, {})
@@ -738,7 +745,7 @@ end
 ---@return NuiTree.Node created_node Created run node
 function ProgressView:_add_progress_view_run_heading(node)
   self.active_progress_view_run_node = NuiTree.Node({
-    text = node.text,
+    text = sanitize_tree_node_text(node.text),
     type = node.type,
   }, {})
   self.progress_view_pane_tree:add_node(self.active_progress_view_run_node)
@@ -764,7 +771,7 @@ function ProgressView:_add_progress_view_output_node(node, parent_node)
 
   -- Add node as child to the section node
   local created_node = NuiTree.Node({
-    text = node.text,
+    text = sanitize_tree_node_text(node.text),
     type = node.type,
   })
   self.progress_view_pane_tree:add_node(created_node, parent_node:get_id())

@@ -281,6 +281,21 @@ describe("Progress view should ensure that", function()
     assert.is_not_nil(progress_view.progress_view_pane_tree:get_node(node:get_id()))
   end)
 
+  it("adding command node with newlines renders correctly", function()
+    progress_view:start_run("Test run")
+    local section_node = progress_view:_add_progress_view_section_heading({
+      type = "section_node",
+      text = "Test section",
+    })
+
+    local node = progress_view:add_progress_node({
+      type = "command_node",
+      text = "nvim --cmd 'lua\nprint(\"hello\")'",
+    }, section_node)
+
+    assert.equals("nvim --cmd 'lua\\nprint(\"hello\")'", node.text)
+  end)
+
   it("only last 30 output nodes are retained", function()
     progress_view:start_run("Test run")
     local section_node = progress_view:_add_progress_view_section_heading({
