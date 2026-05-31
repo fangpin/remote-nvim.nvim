@@ -136,21 +136,81 @@ local function build_neovide_clipboard()
   }
 end
 
-local function prepare_local_clipboard_bridge()
-  if vim.g.neovide ~= true or vim.g.neovide_no_custom_clipboard then
-    return
+local function build_osc52_clipboard()
+  local ok, osc52 = pcall(require, "vim.ui.clipboard.osc52")
+  if not ok then
+    return nil
   end
 
-  local clipboard = vim.g.clipboard
-  if not (type(clipboard) == "table" and string.lower(tostring(clipboard.name or "")) == "neovide") then
-    local neovide_clipboard = build_neovide_clipboard()
-    if neovide_clipboard then
-      vim.g.clipboard = neovide_clipboard
+  local cache = {}
+  local function copy(register)
+    return function(lines, regtype)
+      cache[register] = { lines, regtype }
+      osc52.copy(register)(lines)
     end
   end
 
+  local function paste(register)
+    return function()
+      return cache[register] or { {}, "v" }
+    end
+  end
+
+  return {
+    name = "remote-nvim local OSC 52",
+    copy = {
+      ["+"] = copy("+"),
+      ["*"] = copy("*"),
+    },
+    paste = {
+      ["+"] = paste("+"),
+      ["*"] = paste("*"),
+    },
+    cache_enabled = 0,
+    remote_nvim_cache = cache,
+  }
+end
+
+local function reload_local_clipboard_provider()
   vim.g.loaded_clipboard_provider = nil
   pcall(vim.cmd, "runtime autoload/provider/clipboard.vim")
+end
+
+local function has_local_clipboard_provider()
+  local clipboard = vim.g.clipboard
+  if type(clipboard) == "table" then
+    return true
+  end
+
+  if vim.g.loaded_clipboard_provider == 2 then
+    return true
+  end
+
+  reload_local_clipboard_provider()
+  return vim.g.loaded_clipboard_provider == 2
+end
+
+local function prepare_local_clipboard_bridge()
+  if vim.g.neovide == true and not vim.g.neovide_no_custom_clipboard then
+    local clipboard = vim.g.clipboard
+    if not (type(clipboard) == "table" and string.lower(tostring(clipboard.name or "")) == "neovide") then
+      local neovide_clipboard = build_neovide_clipboard()
+      if neovide_clipboard then
+        vim.g.clipboard = neovide_clipboard
+      end
+    end
+
+    reload_local_clipboard_provider()
+    return
+  end
+
+  if not has_local_clipboard_provider() then
+    local osc52_clipboard = build_osc52_clipboard()
+    if osc52_clipboard then
+      vim.g.clipboard = osc52_clipboard
+      reload_local_clipboard_provider()
+    end
+  end
 end
 
 local function launch_terminal_client(port)

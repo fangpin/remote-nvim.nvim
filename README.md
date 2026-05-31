@@ -1,5 +1,7 @@
 # 🚀 Remote Nvim
 
+[中文](README.zh-CN.md) | English
+
 Adds support for [remote development](https://code.visualstudio.com/docs/remote/remote-overview)
 and [devcontainers](https://code.visualstudio.com/docs/devcontainers/containers)
 to Neovim (just like VSCode). Read in the [FAQ](#faq) at the end of this document why you would prefer
@@ -464,6 +466,10 @@ accidentally leave the remote server without the OSC 52 provider.
 When the default client is launched from Neovide, `remote-nvim` also reloads the local Neovide clipboard provider before
 opening the nested terminal UI. This lets OSC 52 writes from the remote UI flow through the local terminal buffer into
 Neovide's system clipboard bridge.
+
+For terminal clients without an existing local clipboard provider, `remote-nvim` installs a local OSC 52 fallback before
+opening the nested terminal UI. This lets Neovim's terminal buffer handle OSC 52 writes from the remote UI and forward
+them to terminals such as Warp that support OSC 52 clipboard writes.
 
 If you override `client_callback` to launch a GUI client such as Neovide, the startup hook preserves Neovide's clipboard
 provider when it is available.

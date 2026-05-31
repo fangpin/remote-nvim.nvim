@@ -12,6 +12,7 @@ describe("RemoteNeovim", function()
     local previous_loaded_clipboard_provider
     local rpcrequest_stub
     local list_uis_stub
+    local ui_send_stub
 
     before_each(function()
       previous_neovide = vim.g.neovide
@@ -21,6 +22,7 @@ describe("RemoteNeovim", function()
       float_term_stub = stub(require("remote-nvim.ui"), "float_term")
       rpcrequest_stub = nil
       list_uis_stub = nil
+      ui_send_stub = nil
     end)
 
     after_each(function()
@@ -30,6 +32,9 @@ describe("RemoteNeovim", function()
       end
       if list_uis_stub then
         list_uis_stub:revert()
+      end
+      if ui_send_stub then
+        ui_send_stub:revert()
       end
       vim.g.neovide = previous_neovide
       vim.g.neovide_channel_id = previous_neovide_channel_id
@@ -80,6 +85,42 @@ describe("RemoteNeovim", function()
       vim.g.clipboard.copy["*"]({ "primary text" })
 
       assert.stub(rpcrequest_stub).was.called_with(24, "neovide.set_clipboard", { "primary text" }, "*")
+    end)
+
+    it("installs a local OSC 52 clipboard bridge for terminal clients without a provider", function()
+      ui_send_stub = stub(vim.api, "nvim_ui_send")
+      vim.g.neovide = false
+      vim.g.clipboard = nil
+      vim.g.loaded_clipboard_provider = nil
+
+      remote_nvim.default_opts.client_callback(1234, {})
+      vim.g.clipboard.copy["+"]({ "copied text" })
+
+      assert.stub(float_term_stub).was.called_with("nvim --server localhost:1234 --remote-ui", match.is_function())
+      assert.are.equal("remote-nvim local OSC 52", vim.g.clipboard.name)
+      assert.stub(ui_send_stub).was.called()
+    end)
+
+    it("preserves an existing local clipboard provider for terminal clients", function()
+      local existing_clipboard = {
+        name = "existing",
+        copy = {
+          ["+"] = function() end,
+          ["*"] = function() end,
+        },
+        paste = {
+          ["+"] = function() end,
+          ["*"] = function() end,
+        },
+      }
+      vim.g.neovide = false
+      vim.g.clipboard = existing_clipboard
+
+      remote_nvim.default_opts.client_callback(1234, {})
+
+      assert.are.equal("existing", vim.g.clipboard.name)
+      assert.are.equal(existing_clipboard.copy["+"], vim.g.clipboard.copy["+"])
+      assert.are.equal(existing_clipboard.paste["+"], vim.g.clipboard.paste["+"])
     end)
   end)
 end)
