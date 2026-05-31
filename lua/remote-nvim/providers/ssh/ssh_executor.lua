@@ -71,8 +71,12 @@ function SSHExecutor:upload(localSrcPath, remoteDestPath, job_opts)
     return self:run_executor_job(command, job_opts)
   else
     local remotePath = ("%s:%s"):format(self.host, remoteDestPath)
-    local rsync_command =
-      ("%s %s --exclude .git %s %s"):format(self.rsync_binary, self.rsync_conn_opts, localSrcPath, remotePath)
+    local rsync_command = ("%s %s --exclude .git %s %s"):format(
+      self.rsync_binary,
+      self.rsync_conn_opts,
+      localSrcPath,
+      remotePath
+    )
 
     return self:run_executor_job(rsync_command, job_opts)
   end
@@ -130,15 +134,38 @@ function SSHExecutor:start_port_forward(local_port, remote_port, job_opts)
   return self:run_executor_job(("%s %s"):format(self.ssh_binary, host_conn_opts), job_opts)
 end
 
+---@private
+---Build a shell command that replaces the remote shell with the server process.
+---@param command string Command to start on the remote host
+---@param cwd string? Working directory to use before starting the command
+---@return string command Shell command
+function SSHExecutor:_build_detached_exec_command(command, cwd)
+  local command_start_idx = 1
+  while true do
+    local assignment = command:sub(command_start_idx):match("^[%w_]+=[^%s]+%s+")
+    if assignment == nil then
+      break
+    end
+    command_start_idx = command_start_idx + #assignment
+  end
+
+  local exec_command = ("%sexec %s"):format(command:sub(1, command_start_idx - 1), command:sub(command_start_idx))
+  if cwd and cwd ~= "" then
+    exec_command = ("cd %s && %s"):format(vim.fn.shellescape(cwd), exec_command)
+  end
+  return exec_command
+end
+
 ---Start a command in the background on the remote host and write its remote shell PID to a pidfile.
 ---@param command string Command to start on the remote host
 ---@param pidfile string Remote pidfile path
 ---@param job_opts remote-nvim.provider.Executor.JobOpts?
 function SSHExecutor:run_detached_server_command(command, pidfile, job_opts)
   job_opts = job_opts or {}
+  local exec_command = self:_build_detached_exec_command(command, job_opts.cwd)
   local detached_command = ("rm -f %s; nohup sh -c %s >/dev/null 2>&1 & printf %%s $! > %s"):format(
     pidfile,
-    vim.fn.shellescape("exec " .. command),
+    vim.fn.shellescape(exec_command),
     pidfile
   )
   return self:run_executor_job(self:_build_run_command(detached_command, job_opts), job_opts)

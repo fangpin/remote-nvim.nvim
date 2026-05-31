@@ -1112,22 +1112,31 @@ function Provider:_launch_remote_neovim_server()
       vim.fn.shellescape(self:_get_clipboard_setup_cmd())
     )
 
+    local remote_server_working_dir = nil
     -- If we have a specified working directory, we launch there
     if self._remote_working_dir and self._remote_working_dir ~= "" then
-      remote_server_launch_cmd =
-        ("cd %s && %s"):format(vim.fn.shellescape(self._remote_working_dir), remote_server_launch_cmd)
+      remote_server_working_dir = self._remote_working_dir
     end
 
     if self.executor.start_port_forward ~= nil then
+      local displayed_remote_server_launch_cmd = remote_server_launch_cmd
+      if remote_server_working_dir then
+        displayed_remote_server_launch_cmd = ("cd %s && %s"):format(
+          vim.fn.shellescape(remote_server_working_dir),
+          remote_server_launch_cmd
+        )
+      end
+
       local section_node = self.progress_viewer:add_progress_node({
         text = "Launching Neovim server on the remote machine",
         type = "section_node",
       })
       self.progress_viewer:add_progress_node({
-        text = remote_server_launch_cmd,
+        text = displayed_remote_server_launch_cmd,
         type = "command_node",
       }, section_node)
       self.executor:run_detached_server_command(remote_server_launch_cmd, remote_pidfile_path, {
+        cwd = remote_server_working_dir,
         stdout_cb = self:_get_stdout_fn_for_node(section_node),
       })
       self:_handle_job_completion("Launching Neovim server on the remote machine", section_node)
@@ -1150,6 +1159,13 @@ function Provider:_launch_remote_neovim_server()
       self.progress_viewer:update_status("success", false, tunnel_node)
       self:_refresh_runtime_diagnostics()
     else
+      if remote_server_working_dir then
+        remote_server_launch_cmd = ("cd %s && %s"):format(
+          vim.fn.shellescape(remote_server_working_dir),
+          remote_server_launch_cmd
+        )
+      end
+
       self:_run_code_in_coroutine(function()
         self:run_command(
           remote_server_launch_cmd,
@@ -1165,7 +1181,10 @@ function Provider:_launch_remote_neovim_server()
       end, "Launching Remote Neovim server")
       self._remote_server_process_id = self.executor:last_job_id()
     end
-    self:run_command(("test -f %s && cat %s || true"):format(remote_pidfile_path, remote_pidfile_path), "Reading remote Neovim server PID")
+    self:run_command(
+      ("test -f %s && cat %s || true"):format(remote_pidfile_path, remote_pidfile_path),
+      "Reading remote Neovim server PID"
+    )
     local remote_pid_output = self.executor:job_stdout()
     self._remote_server_pid = remote_pid_output[#remote_pid_output]
     self:_refresh_runtime_diagnostics()
@@ -1427,7 +1446,9 @@ function Provider:reattach_neovim(record)
 
   if self:is_remote_server_running() then
     vim.notify(
-      ("Remote session '%s' already has a running local session. Stop it before reattaching"):format(self.unique_host_id),
+      ("Remote session '%s' already has a running local session. Stop it before reattaching"):format(
+        self.unique_host_id
+      ),
       vim.log.levels.WARN
     )
     return
@@ -1458,7 +1479,10 @@ end
 ---@param record table Detached registry record
 function Provider:kill_detached_neovim(record)
   if record.status ~= "stale" then
-    self:run_command(("kill %s || true"):format(vim.fn.shellescape(tostring(record.remote_pid))), "Killing detached Neovim server")
+    self:run_command(
+      ("kill %s || true"):format(vim.fn.shellescape(tostring(record.remote_pid))),
+      "Killing detached Neovim server"
+    )
   end
   self:_detached_registry():remove(self.unique_host_id)
 end

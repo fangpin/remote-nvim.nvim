@@ -1,6 +1,6 @@
 local assert = require("luassert.assert")
-local stub = require("luassert.stub")
 local match = require("luassert.match")
+local stub = require("luassert.stub")
 
 describe("SSH Executor", function()
   local SSHExecutor = require("remote-nvim.providers.ssh.ssh_executor")
@@ -54,7 +54,9 @@ describe("SSH Executor", function()
     it("for specified port rsync", function()
       other_executor:upload("local-path", "remote-path")
       local other_rsync_command = "rsync -r -e 'ssh -p 2310' --exclude .git local-path remote-host:remote-path"
-      assert.stub(other_executor_run_job_stub).was.called_with(other_executor, other_rsync_command, { compression = {} })
+      assert
+        .stub(other_executor_run_job_stub).was
+        .called_with(other_executor, other_rsync_command, { compression = {} })
     end)
 
     describe("when compression is turned on", function()
@@ -134,11 +136,9 @@ describe("SSH Executor", function()
   it("starts a forward-only SSH job", function()
     executor:start_port_forward("12345", "32123")
 
-    assert.stub(executor_run_job_stub).was.called_with(
-      match.is_ref(executor),
-      "ssh -N -L 12345:localhost:32123 remote-host",
-      { detach = true }
-    )
+    assert
+      .stub(executor_run_job_stub).was
+      .called_with(match.is_ref(executor), "ssh -N -L 12345:localhost:32123 remote-host", { detach = true })
   end)
 
   it("runs a remote command detached and records its pidfile", function()
@@ -146,9 +146,38 @@ describe("SSH Executor", function()
 
     assert.stub(executor_run_job_stub).was.called_with(
       match.is_ref(executor),
-      match.matches("ssh remote%-host 'rm %-f ~/.remote%-nvim/workspace/nvim%.pid; nohup sh %-c .*exec nvim %-%-listen 0%.0%.0%.0:32123 %-%-headless.* > ~/.remote%-nvim/workspace/nvim%.pid'"),
+      match.matches(
+        "ssh remote%-host 'rm %-f ~/.remote%-nvim/workspace/nvim%.pid; nohup sh %-c .*exec nvim %-%-listen 0%.0%.0%.0:32123 %-%-headless.* > ~/.remote%-nvim/workspace/nvim%.pid'"
+      ),
       match.is_table()
     )
+  end)
+
+  it(
+    "runs a detached remote command with environment assignments by exec-ing the command, not the assignment",
+    function()
+      executor:run_detached_server_command(
+        "XDG_CONFIG_HOME=~/.remote-nvim/workspaces/test/.config nvim --listen 0.0.0.0:32123 --headless",
+        "~/.remote-nvim/workspace/nvim.pid"
+      )
+
+      local command = executor_run_job_stub.calls[1].refs[2]
+      assert.is_nil(command:find("exec XDG_CONFIG_HOME", 1, true))
+      assert.is_not_nil(command:find("XDG_CONFIG_HOME=~/.remote-nvim/workspaces/test/.config exec nvim", 1, true))
+    end
+  )
+
+  it("runs a detached remote command in a working directory before exec-ing the server", function()
+    executor:run_detached_server_command(
+      "XDG_CONFIG_HOME=~/.remote-nvim/workspaces/test/.config nvim --listen 0.0.0.0:32123 --headless",
+      "~/.remote-nvim/workspace/nvim.pid",
+      { cwd = "/home/test user/project" }
+    )
+
+    local command = executor_run_job_stub.calls[1].refs[2]
+    assert.is_nil(command:find("exec cd", 1, true))
+    assert.is_not_nil(command:find("/home/test user/project", 1, true))
+    assert.is_not_nil(command:find("XDG_CONFIG_HOME=~/.remote-nvim/workspaces/test/.config exec nvim", 1, true))
   end)
 
   describe("should correctly run command job with correct arguments", function()

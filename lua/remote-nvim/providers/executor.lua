@@ -14,6 +14,7 @@ local Executor = require("remote-nvim.middleclass")("Executor")
 ---@field additional_conn_opts string? Connection options
 ---@field stdout_cb function? Standard output callback
 ---@field exit_cb function? On exit callback
+---@field cwd string? Working directory for detached remote commands
 ---@field compression remote-nvim.provider.Executor.JobOpts.CompressionOpts? Compression options; for upload and download
 
 ---Initialize executor instance

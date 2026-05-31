@@ -265,7 +265,8 @@ describe("Provider", function()
           "/remote/project",
           provider._config_provider:get_workspace_config(provider.unique_host_id).working_dir
         )
-        local remote_config_entries = progress_viewer.set_session_section.calls[#progress_viewer.set_session_section.calls].refs[4]
+        local remote_config_entries =
+          progress_viewer.set_session_section.calls[#progress_viewer.set_session_section.calls].refs[4]
         assert.equals("Working dir.    ", remote_config_entries[#remote_config_entries].key)
         assert.equals("/remote/project", remote_config_entries[#remote_config_entries].value)
         assert.stub(get_input_stub).was.called_with("Remote working directory (optional, blank for default): ")
@@ -607,11 +608,7 @@ describe("Provider", function()
 
     provider:detach_neovim()
 
-    assert.stub(upsert_stub).was.called_with(
-      match.is_ref(registry),
-      provider.unique_host_id,
-      match.is_table()
-    )
+    assert.stub(upsert_stub).was.called_with(match.is_ref(registry), provider.unique_host_id, match.is_table())
     local record = upsert_stub.calls[1].refs[3]
     assert.are.same("detached", record.status)
     assert.are.same("ssh", record.provider)
@@ -653,7 +650,9 @@ describe("Provider", function()
 
     assert.stub(remote_pid_alive_stub).was.called_with(match.is_ref(provider), "4567")
     assert.stub(remote_port_alive_stub).was.called_with(match.is_ref(provider), "32123")
-    assert.stub(start_port_forward_stub).was.called_with(match.is_ref(provider.executor), 12345, "32123", match.is_table())
+    assert
+      .stub(start_port_forward_stub).was
+      .called_with(match.is_ref(provider.executor), 12345, "32123", match.is_table())
     assert.equals(99, provider._remote_server_process_id)
     assert.equals(12345, provider._local_free_port)
     assert.equals("32123", provider._remote_free_port)
@@ -813,12 +812,9 @@ describe("Provider", function()
 
     provider:_add_session_info()
 
-    assert.stub(progress_viewer.set_session_section).was.called_with(
-      match.is_ref(progress_viewer),
-      "Runtime diagnostics",
-      "runtime_node",
-      match.is_table()
-    )
+    assert
+      .stub(progress_viewer.set_session_section).was
+      .called_with(match.is_ref(progress_viewer), "Runtime diagnostics", "runtime_node", match.is_table())
   end)
 
   it("shows the cached clipboard provider in runtime diagnostics", function()
@@ -1235,11 +1231,16 @@ describe("Provider", function()
 
         assert.stub(run_detached_server_command_stub).was.called_with(
           match.is_ref(provider.executor),
-          match.matches("REMOTE_NVIM_PIDFILE=~/.remote%-nvim/workspaces/ajfdalfj/nvim%.pid.*nvim %-%-listen 0%.0%.0%.0:32123 %-%-headless"),
+          match.matches(
+            "REMOTE_NVIM_PIDFILE=~/.remote%-nvim/workspaces/ajfdalfj/nvim%.pid.*nvim %-%-listen 0%.0%.0%.0:32123 %-%-headless"
+          ),
           "~/.remote-nvim/workspaces/ajfdalfj/nvim.pid",
           match.is_table()
         )
-        assert.stub(start_port_forward_stub).was.called_with(match.is_ref(provider.executor), 52232, 32123, match.is_table())
+        assert.is_nil(run_detached_server_command_stub.calls[1].refs[4].cwd)
+        assert
+          .stub(start_port_forward_stub).was
+          .called_with(match.is_ref(provider.executor), 52232, 32123, match.is_table())
         assert.stub(run_command_stub).was.not_called_with(
           match.is_ref(provider),
           match.matches("nvim --listen"),
@@ -1249,6 +1250,33 @@ describe("Provider", function()
         )
         assert.equals(99, provider._remote_server_process_id)
         assert.stub(update_status_stub).was.called_with(match.is_ref(progress_viewer), "success", false, nil)
+
+        last_job_status_stub:revert()
+        last_job_id_stub:revert()
+      end)
+
+      it("for SSH by passing the working directory to the detached server command", function()
+        provider.executor.run_detached_server_command = function() end
+        local run_detached_server_command_stub = stub(provider.executor, "run_detached_server_command")
+        local start_port_forward_stub = stub(provider.executor, "start_port_forward")
+        local last_job_status_stub = stub(provider.executor, "last_job_status").returns(0)
+        local last_job_id_stub = stub(provider.executor, "last_job_id").returns(99)
+        provider.provider_type = "ssh"
+        provider._remote_working_dir = "/home/test-user"
+
+        provider:_launch_remote_neovim_server()
+
+        assert.stub(run_detached_server_command_stub).was.called_with(
+          match.is_ref(provider.executor),
+          match.matches("^XDG_CONFIG_HOME=.*nvim %-%-listen 0%.0%.0%.0:32123 %-%-headless"),
+          "~/.remote-nvim/workspaces/ajfdalfj/nvim.pid",
+          match.is_table()
+        )
+        assert.is_nil(run_detached_server_command_stub.calls[1].refs[2]:find("cd '/home/test%-user'", 1, false))
+        assert.equals("/home/test-user", run_detached_server_command_stub.calls[1].refs[4].cwd)
+        assert
+          .stub(start_port_forward_stub).was
+          .called_with(match.is_ref(provider.executor), 52232, 32123, match.is_table())
 
         last_job_status_stub:revert()
         last_job_id_stub:revert()

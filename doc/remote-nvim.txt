@@ -176,7 +176,7 @@ value.
         ssh_binary = "ssh", -- Binary to use for running SSH command
         rsync_binary = "rsync", -- Binary to use for running rsync copy commands
         ssh_config_file_paths = { "$HOME/.ssh/config" }, -- Which files should be considered to contain the ssh host configurations. NOTE: `Include` is respected in the provided files.
-    
+
         -- These are useful for password-based SSH authentication.
         -- It provides parsing pattern for the plugin to detect that an input is requested.
         -- Each element contains the following attributes:
@@ -201,7 +201,7 @@ value.
           -- There are other values here which can be checked in lua/remote-nvim/init.lua
         },
       },
-    
+
       -- Path to the script that would be copied to the remote and called to ensure that neovim gets installed.
       -- Default path is to the plugin's own ./scripts/neovim_install.sh file.
       neovim_install_script_path = utils.path_join(
@@ -210,15 +210,15 @@ value.
         "scripts",
         "neovim_install.sh"
       ),
-    
+
       -- Modify the UI for the plugin's progress viewer.
       -- type can be "split" or "popup". All options from https://github.com/MunifTanjim/nui.nvim/tree/main/lua/nui/popup and https://github.com/MunifTanjim/nui.nvim/tree/main/lua/nui/split are supported.
       -- Note that some options like "border" are only available for "popup".
       progress_view = {
         type = "popup",
       },
-    
-    
+
+
       -- Offline mode configuration. For more details, see the "Offline mode" section below.
       offline_mode = {
         -- Should offline mode be enabled?
@@ -228,7 +228,7 @@ value.
         -- What path should be looked at to find locally available releases
         cache_dir = utils.path_join(utils.is_windows, vim.fn.stdpath("cache"), constants.PLUGIN_NAME, "version_cache"),
       },
-    
+
       -- Remote configuration
       remote = {
         app_name = "nvim", -- This directly maps to the value NVIM_APPNAME. If you use any other paths for configuration, also make sure to set this.
@@ -275,7 +275,7 @@ value.
           },
         },
       },
-    
+
       -- You can supply your own callback that should be called to create the local client. The default implementation
       -- starts a terminal remote UI with `nvim --remote-ui`.
       -- Two arguments are passed to the callback:
@@ -289,7 +289,7 @@ value.
           end
         end)
       end,
-    
+
       -- Plugin log related configuration [PREFER NOT TO CHANGE THIS]
       log = {
         -- Where is the log file
@@ -639,7 +639,7 @@ run this script from inside the cloned repo.
 
 >bash
     ./scripts/neovim_download.sh -v <version> -d <cache-dir> -o <os-type> -a <arch-type> -t <release-type>
-    
+
      <version> can be stable, nightly or any Neovim release provided like v0.9.4
      <cache-dir> is the path in which the Neovim release and it's checksum should be downloaded. This should be same as the cache_dir plugin configuration value else it won't be
      detected by the plugin. See configuration below.
