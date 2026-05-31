@@ -148,6 +148,15 @@ describe("Progress view should ensure that", function()
       assert.are.equal("1234", runtime_values["Remote PID"])
     end)
 
+    it("renders session section values that are not strings", function()
+      assert.has_no.errors(function()
+        progress_view:set_session_section("Runtime diagnostics", "runtime_node", {
+          { key = "Local job ID", value = 99 },
+          { key = "Remote server running", value = true },
+        })
+      end)
+    end)
+
     it("when there is a parent node", function()
       ---@type NuiTree.Node
       local config_holder_node

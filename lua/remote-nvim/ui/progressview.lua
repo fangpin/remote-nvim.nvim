@@ -417,10 +417,11 @@ function ProgressView:_initialize_session_info_tree()
 
         local node_value_hl = hl_groups.RemoteNvimInfo.name
         if node.key ~= nil then
-          line:append(node.key .. ": ", hl_groups.RemoteNvimInfoKey.name)
+          line:append(tostring(node.key) .. ": ", hl_groups.RemoteNvimInfoKey.name)
           node_value_hl = hl_groups.RemoteNvimInfoValue.name
         end
-        line:append(node.value or "<not-provided>", node_value_hl)
+        local node_value = node.value == nil and "<not-provided>" or tostring(node.value)
+        line:append(node_value, node_value_hl)
       end
 
       if
