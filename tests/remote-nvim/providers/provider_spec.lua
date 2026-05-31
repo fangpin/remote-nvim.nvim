@@ -265,6 +265,9 @@ describe("Provider", function()
           "/remote/project",
           provider._config_provider:get_workspace_config(provider.unique_host_id).working_dir
         )
+        local remote_config_entries = progress_viewer.set_session_section.calls[#progress_viewer.set_session_section.calls].refs[4]
+        assert.equals("Working dir.    ", remote_config_entries[#remote_config_entries].key)
+        assert.equals("/remote/project", remote_config_entries[#remote_config_entries].value)
         assert.stub(get_input_stub).was.called_with("Remote working directory (optional, blank for default): ")
       end)
 
@@ -1263,9 +1266,8 @@ describe("Provider", function()
         assert.stub(local_free_port_stub).was.called()
         assert.stub(run_command_stub).was.called_with(
           match.is_ref(provider),
-          "XDG_CONFIG_HOME=~/.remote-nvim/workspaces/ajfdalfj/.config XDG_DATA_HOME=~/.remote-nvim/workspaces/ajfdalfj/.local/share XDG_STATE_HOME=~/.remote-nvim/workspaces/ajfdalfj/.local/state XDG_CACHE_HOME=~/.remote-nvim/workspaces/ajfdalfj/.cache NVIM_APPNAME=nvim REMOTE_NVIM_PIDFILE=~/.remote-nvim/workspaces/ajfdalfj/nvim.pid ~/.remote-nvim/nvim-downloads/stable/bin/nvim --listen 0.0.0.0:32123 --headless --cmd "
-            .. clipboard_setup_cmd
-            .. " --cmd 'cd /home/test-user'",
+          "cd '/home/test-user' && XDG_CONFIG_HOME=~/.remote-nvim/workspaces/ajfdalfj/.config XDG_DATA_HOME=~/.remote-nvim/workspaces/ajfdalfj/.local/share XDG_STATE_HOME=~/.remote-nvim/workspaces/ajfdalfj/.local/state XDG_CACHE_HOME=~/.remote-nvim/workspaces/ajfdalfj/.cache NVIM_APPNAME=nvim REMOTE_NVIM_PIDFILE=~/.remote-nvim/workspaces/ajfdalfj/nvim.pid ~/.remote-nvim/nvim-downloads/stable/bin/nvim --listen 0.0.0.0:32123 --headless --cmd "
+            .. clipboard_setup_cmd,
           match.is_string(),
           "-t -L 52232:localhost:32123",
           match.is_function()
@@ -1420,10 +1422,19 @@ describe("Provider", function()
       })
       provider:_setup_workspace_variables()
       stub(provider, "_wait_for_server_to_be_ready")
-      local defined_callback_stub = stub(remote_nvim.config, "client_callback")
+      local add_progress_node_stub = stub(progress_viewer, "add_progress_node")
+      local update_status_stub = stub(progress_viewer, "update_status")
+      local defined_callback_stub = stub(remote_nvim.config, "client_callback").invokes(function()
+        assert.stub(update_status_stub).was.called_with(match.is_ref(progress_viewer), "success", false, nil)
+      end)
 
       provider:_launch_local_neovim_client()
       assert.stub(defined_callback_stub).was.called()
+      assert.stub(add_progress_node_stub).was.called_with(match.is_ref(progress_viewer), {
+        type = "section_node",
+        text = "Launching local Neovim client",
+      })
+      assert.stub(update_status_stub).was.called_with(match.is_ref(progress_viewer), "success", false, nil)
     end)
   end)
 

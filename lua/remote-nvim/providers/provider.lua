@@ -273,6 +273,8 @@ function Provider:_setup_remote_working_dir()
       working_dir = self._remote_working_dir,
     })
   end
+
+  self:_refresh_remote_session_info()
 end
 
 ---@private
@@ -294,14 +296,6 @@ function Provider:_add_session_info()
     })
   end
 
-  local function add_remote_info(key, value)
-    self.progress_viewer:add_session_node({
-      type = "remote_node",
-      key = key,
-      value = value,
-    })
-  end
-
   add_config_info("Log path         ", remote_nvim.config.log.filepath)
   add_config_info("Host ID          ", self.unique_host_id)
   add_config_info("Version (Commit) ", utils.get_plugin_version())
@@ -309,15 +303,30 @@ function Provider:_add_session_info()
   add_local_info("OS             ", utils.os_name())
   add_local_info("Neovim version ", utils.neovim_version())
 
-  add_remote_info("OS              ", self._remote_os)
-  add_remote_info("Neovim version  ", self._remote_neovim_version)
-  add_remote_info("Connection type ", self.provider_type)
-  add_remote_info("Host URI        ", self.host)
-  add_remote_info("Connection opts ", (self.conn_opts == "" and "<no-extra-options>" or self.conn_opts))
-  add_remote_info("Workspace path  ", self._remote_workspace_id_path)
-  add_remote_info("Working dir.    ", self._remote_working_dir)
+  self:_refresh_remote_session_info()
 
   self:_refresh_runtime_diagnostics()
+end
+
+---@private
+---@return { key: string, value: any }[] entries Remote session info entries
+function Provider:_remote_session_entries()
+  return {
+    { key = "OS              ", value = self._remote_os },
+    { key = "Neovim version  ", value = self._remote_neovim_version },
+    { key = "Connection type ", value = self.provider_type },
+    { key = "Host URI        ", value = self.host },
+    { key = "Connection opts ", value = (self.conn_opts == "" and "<no-extra-options>" or self.conn_opts) },
+    { key = "Workspace path  ", value = self._remote_workspace_id_path },
+    { key = "Working dir.    ", value = self._remote_working_dir },
+  }
+end
+
+---@private
+function Provider:_refresh_remote_session_info()
+  if self.progress_viewer.set_session_section then
+    self.progress_viewer:set_session_section("Remote config", "remote_node", self:_remote_session_entries())
+  end
 end
 
 ---Store clipboard diagnostics for runtime reporting.
@@ -1105,10 +1114,8 @@ function Provider:_launch_remote_neovim_server()
 
     -- If we have a specified working directory, we launch there
     if self._remote_working_dir and self._remote_working_dir ~= "" then
-      remote_server_launch_cmd = ("%s --cmd %s"):format(
-        remote_server_launch_cmd,
-        vim.fn.shellescape(("cd %s"):format(vim.fn.fnameescape(self._remote_working_dir)))
-      )
+      remote_server_launch_cmd =
+        ("cd %s && %s"):format(vim.fn.shellescape(self._remote_working_dir), remote_server_launch_cmd)
     end
 
     if self.executor.start_port_forward ~= nil then
@@ -1266,7 +1273,12 @@ end
 ---Launch local neovim client
 function Provider:_launch_local_neovim_client()
   if self:_get_local_client_start_preference() then
+    local section_node = self.progress_viewer:add_progress_node({
+      type = "section_node",
+      text = "Launching local Neovim client",
+    })
     self:_wait_for_server_to_be_ready()
+    self.progress_viewer:update_status("success", false, section_node)
 
     remote_nvim.config.client_callback(
       self._local_free_port,
