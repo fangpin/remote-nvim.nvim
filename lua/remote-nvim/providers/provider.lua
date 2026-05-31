@@ -1118,7 +1118,7 @@ function Provider:_launch_remote_neovim_server()
       remote_server_working_dir = self._remote_working_dir
     end
 
-    if self.executor.start_port_forward ~= nil then
+    if self:_ssh_detach_enabled() and self.executor.start_port_forward ~= nil then
       local displayed_remote_server_launch_cmd = remote_server_launch_cmd
       if remote_server_working_dir then
         displayed_remote_server_launch_cmd = ("cd %s && %s"):format(
@@ -1195,6 +1195,14 @@ function Provider:_launch_remote_neovim_server()
       })
     end
   end
+end
+
+---@private
+---@return boolean enabled Whether detached SSH launch is enabled
+function Provider:_ssh_detach_enabled()
+  return self.provider_type == "ssh"
+    and remote_nvim.config.remote.detach ~= nil
+    and remote_nvim.config.remote.detach.enabled == true
 end
 
 ---@protected
@@ -1386,6 +1394,11 @@ end
 function Provider:detach_neovim()
   if self.provider_type ~= "ssh" then
     vim.notify("Detach is only supported for SSH sessions", vim.log.levels.WARN)
+    return
+  end
+
+  if not self:_ssh_detach_enabled() then
+    vim.notify("Detached SSH sessions require remote.detach.enabled = true", vim.log.levels.WARN)
     return
   end
 

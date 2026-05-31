@@ -76,6 +76,7 @@ local utils = require("remote-nvim.utils")
 ---@field copy_dirs remote-nvim.config.PluginConfig.Remote.CopyDirs Which directories should be copied over to the remote
 ---@field app_name string Neovim app name which should be used throughout
 ---@field reconnect { enabled: boolean, max_attempts: integer, backoff_ms: integer } Reconnect behavior when remote Neovim disconnects unexpectedly
+---@field detach { enabled: boolean } Detached SSH session behavior
 
 ---@class remote-nvim.config.PluginConfig
 ---@field devpod remote-nvim.config.PluginConfig.DevpodConfig Devcontainer configuration
@@ -282,6 +283,9 @@ M.default_opts = {
       enabled = false,
       max_attempts = 5,
       backoff_ms = 2000,
+    },
+    detach = {
+      enabled = false,
     },
     copy_dirs = {
       config = {

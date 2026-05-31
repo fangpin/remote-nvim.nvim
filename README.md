@@ -190,6 +190,9 @@ Please read the associated comments before changing the value.
       max_attempts = 5, -- Maximum reconnect attempts for a single unexpected disconnect.
       backoff_ms = 2000, -- Base delay between reconnect attempts. The delay increases by this value on each attempt.
     },
+    detach = {
+      enabled = false, -- Launch SSH remote servers in detached mode so :RemoteDetach/:RemoteReattach can keep the server alive.
+    },
     -- List of directories that should be copied over
     copy_dirs = {
       -- What to copy to remote's Neovim config directory
@@ -445,11 +448,15 @@ Neovim server alive independently from the SSH tunnel.
 
 ### Detached SSH sessions
 
-SSH sessions can be detached explicitly with `:RemoteDetach`. Detach stops the local forwarding job and client, but keeps the remote headless Neovim server running. Use `:RemoteReattach` to validate the saved PID and remote port, recreate the local tunnel, and launch the local client again.
+SSH sessions can be detached explicitly with `:RemoteDetach` after enabling `remote.detach.enabled`. Detach stops the
+local forwarding job and client, but keeps the remote headless Neovim server running. Use `:RemoteReattach` to validate
+the saved PID and remote port, recreate the local tunnel, and launch the local client again.
 
-Detached sessions are stored under `stdpath("data")/remote-nvim/detached.json`. If validation fails, the record is marked stale. Use `:RemoteKillDetached` to kill a detached server or clear a stale record.
+Detached sessions are stored under `stdpath("data")/remote-nvim/detached.json`. If validation fails, the record is
+marked stale. Use `:RemoteKillDetached` to kill a detached server or clear a stale record.
 
-Detach is SSH-only in this release. Devpod, Docker image, and Docker container sessions report a clear unsupported-provider warning.
+Detach is SSH-only in this release. Devpod, Docker image, and Docker container sessions report a clear
+unsupported-provider warning.
 
 ### Local clipboard in the terminal client
 

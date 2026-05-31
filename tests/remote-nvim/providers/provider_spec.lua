@@ -596,6 +596,7 @@ describe("Provider", function()
     local detached_registry_stub = stub(provider, "_detached_registry").returns(registry)
     local is_remote_server_running_stub = stub(provider, "is_remote_server_running").returns(true)
     local job_stop_stub = stub(vim.fn, "jobstop")
+    remote_nvim.config.remote.detach.enabled = true
     provider.provider_type = "ssh"
     provider._local_free_port = 12345
     provider._remote_free_port = "32123"
@@ -621,6 +622,28 @@ describe("Provider", function()
     assert.is_nil(provider._local_free_port)
     assert.are.same("detached", provider._detached_state)
     assert.is_false(provider._provider_stopped_neovim)
+
+    detached_registry_stub:revert()
+    is_remote_server_running_stub:revert()
+  end)
+
+  it("rejects detach when detached SSH launch is disabled", function()
+    local registry = require("remote-nvim.detached_registry")()
+    local upsert_stub = stub(registry, "upsert")
+    local detached_registry_stub = stub(provider, "_detached_registry").returns(registry)
+    local is_remote_server_running_stub = stub(provider, "is_remote_server_running").returns(true)
+    local job_stop_stub = stub(vim.fn, "jobstop")
+    provider.provider_type = "ssh"
+    provider._remote_server_process_id = 99
+    provider._remote_server_pid = "4567"
+
+    provider:detach_neovim()
+
+    assert
+      .stub(vim.notify).was
+      .called_with("Detached SSH sessions require remote.detach.enabled = true", vim.log.levels.WARN)
+    assert.stub(upsert_stub).was_not.called()
+    assert.stub(job_stop_stub).was_not.called()
 
     detached_registry_stub:revert()
     is_remote_server_running_stub:revert()
@@ -1218,7 +1241,28 @@ describe("Provider", function()
         )
       end)
 
-      it("for SSH by launching the remote server detached before starting a forwarding tunnel", function()
+      it("for SSH by using the regular SSH command by default", function()
+        provider.executor.run_detached_server_command = function() end
+        local run_detached_server_command_stub = stub(provider.executor, "run_detached_server_command")
+        local start_port_forward_stub = stub(provider.executor, "start_port_forward")
+        provider.provider_type = "ssh"
+
+        provider:_launch_remote_neovim_server()
+
+        assert.stub(run_detached_server_command_stub).was_not.called()
+        assert.stub(start_port_forward_stub).was_not.called()
+        assert.stub(run_command_stub).was.called_with(
+          match.is_ref(provider),
+          match.matches(
+            "REMOTE_NVIM_PIDFILE=~/.remote%-nvim/workspaces/ajfdalfj/nvim%.pid.*nvim %-%-listen 0%.0%.0%.0:32123 %-%-headless"
+          ),
+          match.is_string(),
+          "-t -L 52232:localhost:32123",
+          match.is_function()
+        )
+      end)
+
+      it("for SSH by launching the remote server detached before starting a forwarding tunnel when enabled", function()
         provider.executor.run_detached_server_command = function() end
         local run_detached_server_command_stub = stub(provider.executor, "run_detached_server_command")
         local start_port_forward_stub = stub(provider.executor, "start_port_forward")
@@ -1226,6 +1270,7 @@ describe("Provider", function()
         local last_job_id_stub = stub(provider.executor, "last_job_id").returns(99)
         local update_status_stub = stub(progress_viewer, "update_status")
         provider.provider_type = "ssh"
+        remote_nvim.config.remote.detach.enabled = true
 
         provider:_launch_remote_neovim_server()
 
@@ -1263,6 +1308,7 @@ describe("Provider", function()
         local last_job_id_stub = stub(provider.executor, "last_job_id").returns(99)
         provider.provider_type = "ssh"
         provider._remote_working_dir = "/home/test-user"
+        remote_nvim.config.remote.detach.enabled = true
 
         provider:_launch_remote_neovim_server()
 
