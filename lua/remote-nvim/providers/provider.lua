@@ -1140,6 +1140,7 @@ function Provider:_launch_remote_neovim_server()
         stdout_cb = self:_get_stdout_fn_for_node(tunnel_node),
       })
       self._remote_server_process_id = self.executor:last_job_id()
+      self.progress_viewer:update_status("success", false, tunnel_node)
       self:_refresh_runtime_diagnostics()
     else
       self:_run_code_in_coroutine(function()

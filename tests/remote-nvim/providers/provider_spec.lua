@@ -1225,6 +1225,7 @@ describe("Provider", function()
         local start_port_forward_stub = stub(provider.executor, "start_port_forward")
         local last_job_status_stub = stub(provider.executor, "last_job_status").returns(0)
         local last_job_id_stub = stub(provider.executor, "last_job_id").returns(99)
+        local update_status_stub = stub(progress_viewer, "update_status")
         provider.provider_type = "ssh"
 
         provider:_launch_remote_neovim_server()
@@ -1244,6 +1245,7 @@ describe("Provider", function()
           match.is_function()
         )
         assert.equals(99, provider._remote_server_process_id)
+        assert.stub(update_status_stub).was.called_with(match.is_ref(progress_viewer), "success", false, nil)
 
         last_job_status_stub:revert()
         last_job_id_stub:revert()
