@@ -18,6 +18,7 @@
 ---@field offline_mode boolean? Should we operate in offline mode
 ---@field devpod_source_opts remote-nvim.providers.DevpodSourceOpts? Devpod related source options
 ---@field working_dir string? Working directory to use when launching remote Neovim
+---@field working_dirs string[]? Known working directories for this workspace
 
 ---@class remote-nvim.providers.Provider: remote-nvim.Object
 ---@field host string Host name
@@ -160,11 +161,25 @@ function Provider:_setup_workspace_variables()
       client_auto_start = nil,
       workspace_id = utils.generate_random_string(10),
       working_dir = self._remote_working_dir,
+      working_dirs = self._remote_working_dir and { self._remote_working_dir } or {},
     })
   else
     self.logger.debug("Found an existing configuration. Re-using the same configuration..")
   end
   self._host_config = self._config_provider:get_workspace_config(self.unique_host_id)
+
+  -- Migrate legacy working_dir to working_dirs if needed
+  if self._host_config.working_dirs == nil or vim.tbl_isempty(self._host_config.working_dirs) then
+    if self._host_config.working_dir then
+      self._host_config.working_dirs = { self._host_config.working_dir }
+    else
+      self._host_config.working_dirs = {}
+    end
+    self._config_provider:update_workspace_config(self.unique_host_id, {
+      working_dirs = self._host_config.working_dirs,
+    })
+  end
+
   self._remote_working_dir = self._remote_working_dir or self._host_config.working_dir
 
   -- Gather remote OS information
@@ -258,23 +273,80 @@ function Provider:_setup_workspace_variables()
 end
 
 ---@private
+---@param dir string Working directory to add to the list (no-op if already present)
+function Provider:_add_working_dir(dir)
+  if dir == nil or dir == "" then
+    return
+  end
+  local dirs = self._host_config.working_dirs or {}
+  for _, d in ipairs(dirs) do
+    if d == dir then
+      return
+    end
+  end
+  table.insert(dirs, dir)
+  self._host_config.working_dirs = dirs
+end
+
+---@private
 ---Get the remote working directory to use when launching Neovim.
 function Provider:_setup_remote_working_dir()
-  self._remote_working_dir = self._remote_working_dir or self._host_config.working_dir
-
   if self.provider_type == "ssh" and self._remote_working_dir == nil then
-    self._remote_working_dir =
-      vim.trim(provider_utils.get_input("Remote working directory (optional, blank for default): "))
+    local working_dirs = self._host_config.working_dirs or {}
+
+    if #working_dirs > 0 then
+      local choices = vim.deepcopy(working_dirs)
+      table.insert(choices, "[Add new working directory]")
+      local choice = provider_utils.get_selection(choices, {
+        prompt = "Select remote working directory",
+      })
+      if choice == nil then
+        return
+      elseif choice == "[Add new working directory]" then
+        self._remote_working_dir =
+          vim.trim(provider_utils.get_input("Remote working directory (optional, blank for default): "))
+      else
+        self._remote_working_dir = choice
+      end
+    elseif self._host_config.working_dir then
+      self._remote_working_dir = self._host_config.working_dir
+    else
+      self._remote_working_dir =
+        vim.trim(provider_utils.get_input("Remote working directory (optional, blank for default): "))
+    end
+  end
+
+  if self._remote_working_dir and self._remote_working_dir ~= "" then
+    self:_add_working_dir(self._remote_working_dir)
   end
 
   if self._remote_working_dir ~= self._host_config.working_dir then
     self._host_config.working_dir = self._remote_working_dir
     self._config_provider:update_workspace_config(self.unique_host_id, {
       working_dir = self._remote_working_dir,
+      working_dirs = self._host_config.working_dirs,
     })
   end
 
   self:_refresh_remote_session_info()
+end
+
+---Switch the working directory for the current session at runtime.
+---@param dir string New working directory
+function Provider:set_working_dir(dir)
+  dir = vim.trim(dir)
+  if dir == "" then
+    return
+  end
+  self._remote_working_dir = dir
+  self:_add_working_dir(dir)
+  self._host_config.working_dir = dir
+  self._config_provider:update_workspace_config(self.unique_host_id, {
+    working_dir = dir,
+    working_dirs = self._host_config.working_dirs,
+  })
+  self:_refresh_remote_session_info()
+  vim.notify(("Remote working directory set to '%s'"):format(dir), vim.log.levels.INFO)
 end
 
 ---@private
@@ -919,7 +991,7 @@ end
 function Provider:_is_remote_neovim_installed()
   local remote_neovim_binary_path = self:_remote_neovim_binary_path()
   self:run_command(
-    ("if test -x %s && %s -v >/dev/null 2>&1; then printf installed; fi"):format(
+    ("sh -c 'if test -x %s && %s -v >/dev/null 2>&1; then printf installed; fi'"):format(
       remote_neovim_binary_path,
       remote_neovim_binary_path
     ),
@@ -1096,7 +1168,7 @@ function Provider:_launch_remote_neovim_server()
     -- Launch Neovim server and port forward
     local port_forward_opts = ([[-t -L %s:localhost:%s]]):format(self._local_free_port, remote_free_port)
     local remote_pidfile_path = utils.path_join(self._remote_is_windows, self._remote_workspace_id_path, "nvim.pid")
-    local remote_server_launch_cmd = ([[XDG_CONFIG_HOME=%s XDG_DATA_HOME=%s XDG_STATE_HOME=%s XDG_CACHE_HOME=%s NVIM_APPNAME=%s REMOTE_NVIM_PIDFILE=%s %s --listen 0.0.0.0:%s --headless]]):format(
+    local remote_server_launch_cmd = ([[env XDG_CONFIG_HOME=%s XDG_DATA_HOME=%s XDG_STATE_HOME=%s XDG_CACHE_HOME=%s NVIM_APPNAME=%s REMOTE_NVIM_PIDFILE=%s %s --listen 0.0.0.0:%s --headless]]):format(
       self._remote_xdg_config_path,
       self._remote_xdg_data_path,
       self._remote_xdg_state_path,
@@ -1122,7 +1194,7 @@ function Provider:_launch_remote_neovim_server()
       local displayed_remote_server_launch_cmd = remote_server_launch_cmd
       if remote_server_working_dir then
         displayed_remote_server_launch_cmd = ("cd %s && %s"):format(
-          vim.fn.shellescape(remote_server_working_dir),
+          utils.shell_escape_path(remote_server_working_dir),
           remote_server_launch_cmd
         )
       end
@@ -1161,7 +1233,7 @@ function Provider:_launch_remote_neovim_server()
     else
       if remote_server_working_dir then
         remote_server_launch_cmd = ("cd %s && %s"):format(
-          vim.fn.shellescape(remote_server_working_dir),
+          utils.shell_escape_path(remote_server_working_dir),
           remote_server_launch_cmd
         )
       end
@@ -1435,13 +1507,12 @@ end
 ---@param port string|number Remote port to probe
 ---@return boolean alive Whether the remote port is confirmed alive
 function Provider:_remote_port_alive(port)
-  local escaped_port = vim.fn.shellescape(tostring(port))
   self:run_command(
     (
-      "if command -v nc >/dev/null; then nc -z localhost %s && echo alive || echo dead; "
-      .. "elif command -v bash >/dev/null; then bash -c ':</dev/tcp/localhost/'%s && echo alive || echo dead; "
-      .. "else echo unknown; fi"
-    ):format(escaped_port, escaped_port),
+      "sh -c 'if command -v nc >/dev/null; then nc -z localhost %s && echo alive || echo dead; "
+      .. "elif command -v bash >/dev/null; then bash -c \":</dev/tcp/localhost/%s\" && echo alive || echo dead; "
+      .. "else echo unknown; fi'"
+    ):format(tostring(port), tostring(port)),
     "Checking detached Neovim port"
   )
   local output = self.executor:job_stdout()

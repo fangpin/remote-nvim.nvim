@@ -151,7 +151,7 @@ function SSHExecutor:_build_detached_exec_command(command, cwd)
 
   local exec_command = ("%sexec %s"):format(command:sub(1, command_start_idx - 1), command:sub(command_start_idx))
   if cwd and cwd ~= "" then
-    exec_command = ("cd %s && %s"):format(vim.fn.shellescape(cwd), exec_command)
+    exec_command = ("cd %s && %s"):format(utils.shell_escape_path(cwd), exec_command)
   end
   return exec_command
 end
@@ -163,11 +163,12 @@ end
 function SSHExecutor:run_detached_server_command(command, pidfile, job_opts)
   job_opts = job_opts or {}
   local exec_command = self:_build_detached_exec_command(command, job_opts.cwd)
-  local detached_command = ("rm -f %s; nohup sh -c %s >/dev/null 2>&1 & printf %%s $! > %s"):format(
+  local script = ("rm -f %s; nohup sh -c %s >/dev/null 2>&1 & printf %%s $! > %s"):format(
     pidfile,
     vim.fn.shellescape(exec_command),
     pidfile
   )
+  local detached_command = ("sh -c %s"):format(vim.fn.shellescape(script))
   return self:run_executor_job(self:_build_run_command(detached_command, job_opts), job_opts)
 end
 

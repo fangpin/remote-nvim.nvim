@@ -285,4 +285,16 @@ function M.get_release_arch_name(arch)
   return arch
 end
 
+---Quote a path for shell `cd` commands while preserving tilde expansion.
+---`vim.fn.shellescape` wraps in single quotes which prevents `~` from expanding.
+---This function leaves a leading `~` outside quotes so the shell can still expand it.
+---@param path string Path to escape
+---@return string escaped_path
+function M.shell_escape_path(path)
+  if path:sub(1, 1) == "~" then
+    return "~" .. vim.fn.shellescape(path:sub(2))
+  end
+  return vim.fn.shellescape(path)
+end
+
 return M
