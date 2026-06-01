@@ -645,4 +645,97 @@ end, {
   end,
 })
 
+function M.RemoteSetWorkingDir(opts)
+  local host_id = vim.trim(opts.args)
+  if host_id == "" then
+    local sessions, running_ids = get_running_ssh_sessions()
+    if #running_ids > 0 then
+      if #running_ids == 1 then
+        host_id = running_ids[1]
+      else
+        vim.ui.select(running_ids, {
+          prompt = "Choose active session to change working directory",
+        }, function(choice)
+          if choice == nil then
+            return
+          end
+          M.RemoteSetWorkingDir({ args = choice })
+        end)
+        return
+      end
+    else
+      local saved = vim.tbl_keys(remote_nvim.session_provider:get_config_provider():get_workspace_config())
+      if #saved == 0 then
+        vim.notify("No active sessions or saved workspace configs found", vim.log.levels.WARN)
+        return
+      elseif #saved == 1 then
+        host_id = saved[1]
+      else
+        vim.ui.select(saved, {
+          prompt = "Choose saved workspace to update working directory",
+        }, function(choice)
+          if choice == nil then
+            return
+          end
+          M.RemoteSetWorkingDir({ args = choice })
+        end)
+        return
+      end
+    end
+  end
+
+  local dir = vim.trim(vim.fn.input(("New working directory for '%s': "):format(host_id)))
+  if dir == "" then
+    vim.notify("Working directory unchanged", vim.log.levels.INFO)
+    return
+  end
+
+  local _, running_ids = get_running_ssh_sessions()
+  local all_sessions, _ = get_running_sessions()
+  local session = all_sessions[host_id]
+
+  if session ~= nil and vim.tbl_contains(running_ids, host_id) then
+    session:set_working_dir(dir)
+  else
+    local config = remote_nvim.session_provider:get_config_provider():get_workspace_config(host_id)
+    if vim.tbl_isempty(config) then
+      vim.notify(("No saved workspace config for '%s' found"):format(host_id), vim.log.levels.WARN)
+      return
+    end
+    local config_provider = remote_nvim.session_provider:get_config_provider()
+    local working_dirs = config.working_dirs or {}
+    if not vim.tbl_contains(working_dirs, dir) then
+      table.insert(working_dirs, dir)
+    end
+    config_provider:update_workspace_config(host_id, {
+      working_dir = dir,
+      working_dirs = working_dirs,
+    })
+    vim.notify(
+      ("Remote working directory for '%s' set to '%s'"):format(host_id, dir),
+      vim.log.levels.INFO
+    )
+  end
+end
+
+vim.api.nvim_create_user_command("RemoteSetWorkingDir", M.RemoteSetWorkingDir, {
+  desc = "Change the remote working directory for a session or saved workspace config",
+  nargs = "?",
+  complete = function(_, line)
+    local args = vim.split(vim.trim(line), "%s+")
+    table.remove(args, 1)
+
+    local _, running = get_running_ssh_sessions()
+    local hosts = vim.tbl_keys(remote_nvim.session_provider:get_config_provider():get_workspace_config())
+    local combined = vim.tbl_filter(function(h)
+      return not vim.tbl_contains(args, h)
+    end, vim.list_extend(vim.deepcopy(running), hosts))
+
+    if #args == 0 then
+      return combined
+    end
+    return vim.fn.matchfuzzy(combined, args[#args])
+  end,
+})
+
 return M

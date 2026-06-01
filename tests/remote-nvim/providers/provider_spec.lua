@@ -123,6 +123,7 @@ describe("Provider", function()
         workspace_id = workspace_id,
         neovim_version = "stable",
         os = "Linux",
+        working_dirs = {},
       }, provider._config_provider:get_workspace_config(provider.unique_host_id))
     end)
 
@@ -231,13 +232,15 @@ describe("Provider", function()
 
     describe("by setting remote working directory", function()
       local get_input_stub
+      local get_selection_stub
 
       before_each(function()
         provider.provider_type = "ssh"
         get_input_stub = stub(require("remote-nvim.providers.utils"), "get_input")
+        get_selection_stub = stub(require("remote-nvim.providers.utils"), "get_selection")
       end)
 
-      it("from saved workspace config", function()
+      it("from saved workspace config (legacy single working_dir)", function()
         provider._config_provider:update_workspace_config(provider.unique_host_id, {
           working_dir = "/saved/workspace",
         })
@@ -248,6 +251,41 @@ describe("Provider", function()
 
         assert.equals("/saved/workspace", provider._remote_working_dir)
         assert.stub(get_input_stub).was.not_called()
+        assert.stub(get_selection_stub).was.not_called()
+      end)
+
+      it("by selecting from multiple saved working directories", function()
+        get_selection_stub.returns("/project/b")
+        provider._config_provider:update_workspace_config(provider.unique_host_id, {
+          working_dir = nil,
+          working_dirs = { "/project/a", "/project/b", "/project/c" },
+        })
+        provider._host_config = provider._config_provider:get_workspace_config(provider.unique_host_id)
+        provider._remote_working_dir = nil
+
+        provider:_setup_remote_working_dir()
+
+        assert.equals("/project/b", provider._remote_working_dir)
+        assert.stub(get_selection_stub).was.called()
+        assert.stub(get_input_stub).was.not_called()
+      end)
+
+      it("by adding a new working directory from the selection screen", function()
+        get_selection_stub.returns("[Add new working directory]")
+        get_input_stub.returns("/project/new")
+        provider._config_provider:update_workspace_config(provider.unique_host_id, {
+          working_dir = nil,
+          working_dirs = { "/project/a" },
+        })
+        provider._host_config = provider._config_provider:get_workspace_config(provider.unique_host_id)
+        provider._remote_working_dir = nil
+
+        provider:_setup_remote_working_dir()
+
+        assert.equals("/project/new", provider._remote_working_dir)
+        assert.stub(get_selection_stub).was.called()
+        assert.stub(get_input_stub).was.called_with("Remote working directory (optional, blank for default): ")
+        assert.are_same({ "/project/a", "/project/new" }, provider._host_config.working_dirs)
       end)
 
       it("by prompting once for SSH workspaces without saved config", function()
@@ -284,6 +322,32 @@ describe("Provider", function()
 
         assert.equals("", provider._remote_working_dir)
         assert.equals("", provider._config_provider:get_workspace_config(provider.unique_host_id).working_dir)
+      end)
+    end)
+
+    describe("by switching working directory at runtime", function()
+      it("via set_working_dir", function()
+        provider._host_config = { working_dirs = { "/old/path" } }
+        provider._remote_working_dir = "/old/path"
+
+        provider:set_working_dir("/new/path")
+
+        assert.equals("/new/path", provider._remote_working_dir)
+        assert.equals("/new/path", provider._host_config.working_dir)
+        assert.are_same({ "/old/path", "/new/path" }, provider._host_config.working_dirs)
+        assert.equals(
+          "/new/path",
+          provider._config_provider:get_workspace_config(provider.unique_host_id).working_dir
+        )
+      end)
+
+      it("does not add duplicate working directories", function()
+        provider._host_config = { working_dirs = { "/path" } }
+        provider._remote_working_dir = "/path"
+
+        provider:set_working_dir("/path")
+
+        assert.are_same({ "/path" }, provider._host_config.working_dirs)
       end)
     end)
   end)
@@ -1233,7 +1297,7 @@ describe("Provider", function()
         assert.stub(local_free_port_stub).was.called()
         assert.stub(run_command_stub).was.called_with(
           match.is_ref(provider),
-          "XDG_CONFIG_HOME=~/.remote-nvim/workspaces/ajfdalfj/.config XDG_DATA_HOME=~/.remote-nvim/workspaces/ajfdalfj/.local/share XDG_STATE_HOME=~/.remote-nvim/workspaces/ajfdalfj/.local/state XDG_CACHE_HOME=~/.remote-nvim/workspaces/ajfdalfj/.cache NVIM_APPNAME=nvim REMOTE_NVIM_PIDFILE=~/.remote-nvim/workspaces/ajfdalfj/nvim.pid ~/.remote-nvim/nvim-downloads/stable/bin/nvim --listen 0.0.0.0:32123 --headless --cmd "
+          "env XDG_CONFIG_HOME=~/.remote-nvim/workspaces/ajfdalfj/.config XDG_DATA_HOME=~/.remote-nvim/workspaces/ajfdalfj/.local/share XDG_STATE_HOME=~/.remote-nvim/workspaces/ajfdalfj/.local/state XDG_CACHE_HOME=~/.remote-nvim/workspaces/ajfdalfj/.cache NVIM_APPNAME=nvim REMOTE_NVIM_PIDFILE=~/.remote-nvim/workspaces/ajfdalfj/nvim.pid ~/.remote-nvim/nvim-downloads/stable/bin/nvim --listen 0.0.0.0:32123 --headless --cmd "
             .. clipboard_setup_cmd,
           match.is_string(),
           "-t -L 52232:localhost:32123",
@@ -1314,7 +1378,7 @@ describe("Provider", function()
 
         assert.stub(run_detached_server_command_stub).was.called_with(
           match.is_ref(provider.executor),
-          match.matches("^XDG_CONFIG_HOME=.*nvim %-%-listen 0%.0%.0%.0:32123 %-%-headless"),
+          match.matches("^env XDG_CONFIG_HOME=.*nvim %-%-listen 0%.0%.0%.0:32123 %-%-headless"),
           "~/.remote-nvim/workspaces/ajfdalfj/nvim.pid",
           match.is_table()
         )
@@ -1340,7 +1404,7 @@ describe("Provider", function()
         assert.stub(local_free_port_stub).was.called()
         assert.stub(run_command_stub).was.called_with(
           match.is_ref(provider),
-          "cd '/home/test-user' && XDG_CONFIG_HOME=~/.remote-nvim/workspaces/ajfdalfj/.config XDG_DATA_HOME=~/.remote-nvim/workspaces/ajfdalfj/.local/share XDG_STATE_HOME=~/.remote-nvim/workspaces/ajfdalfj/.local/state XDG_CACHE_HOME=~/.remote-nvim/workspaces/ajfdalfj/.cache NVIM_APPNAME=nvim REMOTE_NVIM_PIDFILE=~/.remote-nvim/workspaces/ajfdalfj/nvim.pid ~/.remote-nvim/nvim-downloads/stable/bin/nvim --listen 0.0.0.0:32123 --headless --cmd "
+          "cd '/home/test-user' && env XDG_CONFIG_HOME=~/.remote-nvim/workspaces/ajfdalfj/.config XDG_DATA_HOME=~/.remote-nvim/workspaces/ajfdalfj/.local/share XDG_STATE_HOME=~/.remote-nvim/workspaces/ajfdalfj/.local/state XDG_CACHE_HOME=~/.remote-nvim/workspaces/ajfdalfj/.cache NVIM_APPNAME=nvim REMOTE_NVIM_PIDFILE=~/.remote-nvim/workspaces/ajfdalfj/nvim.pid ~/.remote-nvim/nvim-downloads/stable/bin/nvim --listen 0.0.0.0:32123 --headless --cmd "
             .. clipboard_setup_cmd,
           match.is_string(),
           "-t -L 52232:localhost:32123",
@@ -1354,7 +1418,7 @@ describe("Provider", function()
         provider:_launch_remote_neovim_server()
         assert.stub(run_command_stub).was.called_with(
           match.is_ref(provider),
-          "XDG_CONFIG_HOME=~/.remote-nvim/workspaces/ajfdalfj/.config XDG_DATA_HOME=~/.remote-nvim/workspaces/ajfdalfj/.local/share XDG_STATE_HOME=~/.remote-nvim/workspaces/ajfdalfj/.local/state XDG_CACHE_HOME=~/.remote-nvim/workspaces/ajfdalfj/.cache NVIM_APPNAME=nvim REMOTE_NVIM_PIDFILE=~/.remote-nvim/workspaces/ajfdalfj/nvim.pid ~/.remote-nvim/nvim-downloads/stable/bin/nvim --listen 0.0.0.0:32123 --headless --cmd "
+          "env XDG_CONFIG_HOME=~/.remote-nvim/workspaces/ajfdalfj/.config XDG_DATA_HOME=~/.remote-nvim/workspaces/ajfdalfj/.local/share XDG_STATE_HOME=~/.remote-nvim/workspaces/ajfdalfj/.local/state XDG_CACHE_HOME=~/.remote-nvim/workspaces/ajfdalfj/.cache NVIM_APPNAME=nvim REMOTE_NVIM_PIDFILE=~/.remote-nvim/workspaces/ajfdalfj/nvim.pid ~/.remote-nvim/nvim-downloads/stable/bin/nvim --listen 0.0.0.0:32123 --headless --cmd "
             .. clipboard_setup_cmd,
           match.is_string(),
           "-t -L 52232:localhost:32123",
