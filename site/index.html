@@ -1,0 +1,445 @@
+<!doctype html>
+<html lang="en" data-base-prefix=".">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>remote-nvim.nvim</title>
+    <meta
+      name="description"
+      content="Remote-first Neovim over SSH, Docker, Devpod, and Devcontainers."
+    />
+    <meta property="og:title" content="remote-nvim.nvim" />
+    <meta
+      property="og:description"
+      content="Bring remote development to Neovim with SSH, Docker, Devpod, and Devcontainers."
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="./assets/demo-cover.jpg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Azeret+Mono:wght@400;500;700;800&family=Manrope:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body data-page="home">
+    <div class="page-shell">
+      <div class="noise-layer" aria-hidden="true"></div>
+      <header class="topbar">
+        <a class="brand" href="#top" aria-label="remote-nvim.nvim home">
+          <span class="brand-mark">rn</span>
+          <span class="brand-copy">
+            <strong>remote-nvim.nvim</strong>
+            <span data-i18n="brandTagline">remote development for Neovim</span>
+          </span>
+        </a>
+
+        <div class="topbar-actions">
+          <div class="language-toggle" role="group" aria-label="Language toggle">
+            <button type="button" class="lang-button active" data-lang-button="en">EN</button>
+            <button type="button" class="lang-button" data-lang-button="zh-CN">中文</button>
+          </div>
+
+          <nav class="nav-links" aria-label="Primary">
+            <a href="./docs/" data-i18n="navDocs">Docs</a>
+            <a
+              href="https://github.com/fangpin/remote-nvim.nvim"
+              target="_blank"
+              rel="noreferrer"
+              data-i18n="navGithub"
+            >
+              GitHub
+            </a>
+            <a
+              href="https://github.com/fangpin/remote-nvim.nvim/blob/main/README.md"
+              target="_blank"
+              rel="noreferrer"
+              data-i18n="navReadme"
+            >
+              README
+            </a>
+            <a
+              href="https://github.com/fangpin/remote-nvim.nvim/blob/main/README.zh-CN.md"
+              target="_blank"
+              rel="noreferrer"
+              data-i18n="navReadmeZh"
+            >
+              中文文档
+            </a>
+          </nav>
+        </div>
+      </header>
+
+      <main id="top">
+        <section class="hero section">
+          <div class="hero-copy">
+            <div class="eyebrow" data-i18n="eyebrow">GitHub Pages showcase</div>
+            <h1 data-i18n="heroTitle">Remote-first Neovim, without giving up your local workflow.</h1>
+            <p class="hero-lead" data-i18n="heroLead">
+              Launch and manage remote Neovim sessions across SSH hosts, Docker images, Docker containers,
+              and Devpod workspaces, then drive them from your local Neovim UI.
+            </p>
+
+            <div class="hero-actions">
+              <a
+                class="button button-primary"
+                href="https://github.com/fangpin/remote-nvim.nvim"
+                target="_blank"
+                rel="noreferrer"
+                data-i18n="heroPrimaryCta"
+              >
+                Open repository
+              </a>
+              <a class="button button-secondary" href="./docs/" data-i18n="heroDocsCta">
+                Read detailed docs
+              </a>
+              <a
+                class="button button-secondary"
+                href="https://github.com/fangpin/remote-nvim.nvim/blob/main/README.md#-installation"
+                target="_blank"
+                rel="noreferrer"
+                data-i18n="heroSecondaryCta"
+              >
+                Install with lazy.nvim
+              </a>
+            </div>
+
+            <ul class="hero-stats" aria-label="Highlights">
+              <li>
+                <strong>4</strong>
+                <span data-i18n="statModes">remote modes</span>
+              </li>
+              <li>
+                <strong>8</strong>
+                <span data-i18n="statDocs">implementation chapters</span>
+              </li>
+              <li>
+                <strong data-i18n="statClipboardValue">OSC 52</strong>
+                <span data-i18n="statClipboard">clipboard bridge</span>
+              </li>
+            </ul>
+          </div>
+
+          <div class="hero-visual">
+            <div class="orbital-grid" aria-hidden="true">
+              <span></span>
+              <span></span>
+              <span></span>
+            </div>
+
+            <div class="terminal-card">
+              <div class="terminal-top">
+                <span></span>
+                <span></span>
+                <span></span>
+              </div>
+              <div class="terminal-body">
+                <p><span class="prompt">$</span> <span data-i18n="terminalLine1">:RemoteStart</span></p>
+                <p><span class="prompt">></span> <span data-i18n="terminalLine2">Provider: SSH config</span></p>
+                <p><span class="prompt">></span> <span data-i18n="terminalLine3">Workspace: backend-prod</span></p>
+                <p><span class="prompt">></span> <span data-i18n="terminalLine4">Remote server ready on port 34681</span></p>
+                <p><span class="prompt">></span> <span data-i18n="terminalLine5">Local UI attached via --remote-ui</span></p>
+              </div>
+            </div>
+
+            <div class="topology-card">
+              <div class="topology-column">
+                <span class="topology-label" data-i18n="localLabel">Local Neovim</span>
+                <div class="topology-node">nvim</div>
+                <div class="topology-node subtle" data-i18n="clipboardNode">OSC 52 clipboard</div>
+              </div>
+              <div class="topology-bridge" aria-hidden="true">
+                <span></span>
+                <span></span>
+                <span></span>
+              </div>
+              <div class="topology-column">
+                <span class="topology-label" data-i18n="remoteLabel">Remote runtime</span>
+                <div class="topology-node accent" data-i18n="providerNode">SSH / Docker / Devpod</div>
+                <div class="topology-node" data-i18n="serverNode">Headless Neovim server</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="section showcase">
+          <div class="section-heading">
+            <div class="eyebrow" data-i18n="showcaseEyebrow">Real workflow</div>
+            <h2 data-i18n="showcaseTitle">A homepage that shows the actual product.</h2>
+            <p data-i18n="showcaseLead">
+              The first viewport should explain what the plugin does. The next band should show what it looks like in use.
+            </p>
+          </div>
+
+          <div class="showcase-grid">
+            <article class="media-card">
+              <div class="media-frame">
+                <img
+                  src="./assets/demo-cover.jpg"
+                  alt="remote-nvim.nvim tutorial preview"
+                />
+              </div>
+              <div class="media-copy">
+                <div class="media-meta" data-i18n="mediaMetaTutorial">Tutorial overview</div>
+                <h3 data-i18n="mediaTitleTutorial">See the plugin in motion before you install it.</h3>
+                <p data-i18n="mediaBodyTutorial">
+                  Link directly to the existing demo video so visitors can inspect real usage instead of reading abstract claims.
+                </p>
+                <a
+                  class="inline-link"
+                  href="https://www.youtube.com/watch?v=5qbDq1lGEx4"
+                  target="_blank"
+                  rel="noreferrer"
+                  data-i18n="watchDemo"
+                >
+                  Watch demo
+                </a>
+              </div>
+            </article>
+
+            <article class="code-card">
+              <div class="code-card-header">
+                <span data-i18n="installSnippetLabel">Install snippet</span>
+                <button class="copy-button" type="button" data-copy-target="install-snippet" data-i18n="copyButton">
+                  Copy
+                </button>
+              </div>
+              <pre id="install-snippet"><code>{
+  "fangpin/remote-nvim.nvim",
+  version = "*",
+  dependencies = {
+    "nvim-lua/plenary.nvim",
+    "MunifTanjim/nui.nvim",
+    "nvim-telescope/telescope.nvim",
+  },
+  config = true,
+}</code></pre>
+            </article>
+          </div>
+        </section>
+
+        <section class="section features">
+          <div class="section-heading">
+            <div class="eyebrow" data-i18n="featuresEyebrow">Capability map</div>
+            <h2 data-i18n="featuresTitle">Built around practical remote editing paths.</h2>
+          </div>
+
+          <div class="feature-grid">
+            <article class="feature-panel">
+              <div class="feature-index">01</div>
+              <h3 data-i18n="feature1Title">Connection surfaces</h3>
+              <p data-i18n="feature1Body">
+                SSH with password, SSH keys, SSH config, Docker images, Docker containers, and Devpod-backed devcontainers.
+              </p>
+            </article>
+            <article class="feature-panel">
+              <div class="feature-index">02</div>
+              <h3 data-i18n="feature2Title">Remote bootstrap</h3>
+              <p data-i18n="feature2Body">
+                Install Neovim remotely, keep it isolated under a plugin-managed home, and sync selected local config directories.
+              </p>
+            </article>
+            <article class="feature-panel">
+              <div class="feature-index">03</div>
+              <h3 data-i18n="feature3Title">Operational diagnostics</h3>
+              <p data-i18n="feature3Body">
+                Inspect runtime details with `:RemoteInfo`, debug clipboard behavior with `:RemoteClipboardCheck`, and review logs when needed.
+              </p>
+            </article>
+            <article class="feature-panel">
+              <div class="feature-index">04</div>
+              <h3 data-i18n="feature4Title">Session lifecycle</h3>
+              <p data-i18n="feature4Body">
+                Reconnect to saved workspaces, use offline release transfers, and manage detached SSH sessions with explicit reattach and cleanup commands.
+              </p>
+            </article>
+          </div>
+        </section>
+
+        <section class="section docs-map">
+          <div class="section-heading">
+            <div class="eyebrow" data-i18n="docsMapEyebrow">Architecture docs</div>
+            <h2 data-i18n="docsMapTitle">Detailed chapters anchored in the current Lua codebase.</h2>
+            <p data-i18n="docsMapLead">
+              The docs section mirrors English and Chinese chapters across setup, providers, transport, persistence,
+              UI, and offline install behavior.
+            </p>
+          </div>
+
+          <div class="docs-map-grid">
+            <a class="docs-map-card" href="./docs/#overview">
+              <div class="docs-map-meta" data-i18n="docsCard1Meta">Chapter 1</div>
+              <h3 data-i18n="docsCard1Title">System map and entrypoint</h3>
+              <p data-i18n="docsCard1Body">
+                Start with the ownership boundaries, then trace how `setup()` and `:RemoteStart` hand control to a provider session.
+              </p>
+              <span class="inline-link docs-map-link" data-i18n="docsCardLink">Read chapter</span>
+            </a>
+
+            <a class="docs-map-card" href="./docs/#provider-lifecycle">
+              <div class="docs-map-meta" data-i18n="docsCard2Meta">Chapter 3</div>
+              <h3 data-i18n="docsCard2Title">Provider lifecycle and persistence</h3>
+              <p data-i18n="docsCard2Body">
+                See how sessions are cached in-memory, what gets persisted to `workspace.json`, and how reconnect works.
+              </p>
+              <span class="inline-link docs-map-link" data-i18n="docsCardLink">Read chapter</span>
+            </a>
+
+            <a class="docs-map-card" href="./docs/#ssh-transport">
+              <div class="docs-map-meta" data-i18n="docsCard3Meta">Chapter 4</div>
+              <h3 data-i18n="docsCard3Title">SSH transport and Devpod funnel</h3>
+              <p data-i18n="docsCard3Body">
+                Inspect the rsync and tar upload paths, prompt handling, host parsing, and how Docker and devcontainer flows land on Devpod.
+              </p>
+              <span class="inline-link docs-map-link" data-i18n="docsCardLink">Read chapter</span>
+            </a>
+
+            <a class="docs-map-card" href="./docs/#ui-diagnostics">
+              <div class="docs-map-meta" data-i18n="docsCard4Meta">Chapter 7</div>
+              <h3 data-i18n="docsCard4Title">UI, diagnostics, and install scripts</h3>
+              <p data-i18n="docsCard4Body">
+                Follow the progress viewer, clipboard diagnostics, health checks, offline cache scan, and remote install scripts.
+              </p>
+              <span class="inline-link docs-map-link" data-i18n="docsCardLink">Read chapter</span>
+            </a>
+          </div>
+        </section>
+
+        <section class="section support">
+          <div class="section-heading">
+            <div class="eyebrow" data-i18n="supportEyebrow">Support matrix</div>
+            <h2 data-i18n="supportTitle">The project surface, at a glance.</h2>
+          </div>
+
+          <div class="support-layout">
+            <div class="support-table-wrap">
+              <table class="support-table">
+                <thead>
+                  <tr>
+                    <th data-i18n="tableHeadMode">Remote mode</th>
+                    <th data-i18n="tableHeadStatus">Current support</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td data-i18n="modeSshPassword">SSH (password)</td>
+                    <td data-i18n="supportFull">Fully supported</td>
+                  </tr>
+                  <tr>
+                    <td data-i18n="modeSshKey">SSH (SSH key)</td>
+                    <td data-i18n="supportFull">Fully supported</td>
+                  </tr>
+                  <tr>
+                    <td data-i18n="modeSshConfig">SSH (`ssh_config`)</td>
+                    <td data-i18n="supportFull">Fully supported</td>
+                  </tr>
+                  <tr>
+                    <td data-i18n="modeDockerImage">Docker image</td>
+                    <td data-i18n="supportFull">Fully supported</td>
+                  </tr>
+                  <tr>
+                    <td data-i18n="modeDockerContainer">Docker container</td>
+                    <td data-i18n="supportFull">Fully supported</td>
+                  </tr>
+                  <tr>
+                    <td data-i18n="modeDevcontainer">Devcontainer</td>
+                    <td data-i18n="supportFull">Fully supported</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="support-notes">
+              <div class="note-block">
+                <span class="note-label" data-i18n="requirementsLabel">Local requirements</span>
+                <p data-i18n="requirementsBody">
+                  OpenSSH client, Neovim 0.9+, `curl`, `rsync`, optional `tar`, and `devpod` when you want devcontainer workflows.
+                </p>
+              </div>
+              <div class="note-block">
+                <span class="note-label" data-i18n="remoteReqLabel">Remote requirements</span>
+                <p data-i18n="remoteReqBody">
+                  OpenSSH-compliant server, `bash`, either `curl` or `wget`, `rsync`, and network access to Neovim releases unless offline mode is used.
+                </p>
+              </div>
+              <div class="note-block">
+                <span class="note-label" data-i18n="commandsLabel">Key commands</span>
+                <p data-i18n="commandsBody">
+                  `:RemoteStart`, `:RemoteStop`, `:RemoteInfo`, `:RemoteCleanup`, `:RemoteClipboardCheck`, `:RemoteDetach`, `:RemoteReattach`.
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="section timeline">
+          <div class="section-heading">
+            <div class="eyebrow" data-i18n="timelineEyebrow">Flow</div>
+            <h2 data-i18n="timelineTitle">How a remote session comes together.</h2>
+          </div>
+
+          <ol class="timeline-list">
+            <li>
+              <span class="timeline-step">01</span>
+              <div>
+                <h3 data-i18n="timeline1Title">Choose a remote provider</h3>
+                <p data-i18n="timeline1Body">Pick SSH, Docker, Docker container, or Devpod from `:RemoteStart`.</p>
+              </div>
+            </li>
+            <li>
+              <span class="timeline-step">02</span>
+              <div>
+                <h3 data-i18n="timeline2Title">Bootstrap the remote runtime</h3>
+                <p data-i18n="timeline2Body">Install or reuse Neovim, prepare the isolated remote home, and sync selected local config.</p>
+              </div>
+            </li>
+            <li>
+              <span class="timeline-step">03</span>
+              <div>
+                <h3 data-i18n="timeline3Title">Attach a local client</h3>
+                <p data-i18n="timeline3Body">Forward the port and open `nvim --remote-ui` or your custom local client callback.</p>
+              </div>
+            </li>
+            <li>
+              <span class="timeline-step">04</span>
+              <div>
+                <h3 data-i18n="timeline4Title">Inspect, detach, or reconnect</h3>
+                <p data-i18n="timeline4Body">Use runtime diagnostics, clipboard checks, saved workspace records, and SSH detach/reattach when needed.</p>
+              </div>
+            </li>
+          </ol>
+        </section>
+
+        <section class="section cta-band">
+          <div class="cta-card">
+            <div>
+              <div class="eyebrow" data-i18n="ctaEyebrow">Implementation guide</div>
+              <h2 data-i18n="ctaTitle">The site now carries the detailed architecture docs.</h2>
+              <p data-i18n="ctaBody">
+                Use the docs section for implementation details, then drop to the README and vimdoc for installation
+                steps and command reference.
+              </p>
+            </div>
+            <div class="cta-actions">
+              <a class="button button-primary" href="./docs/" data-i18n="ctaPrimary">
+                Open docs
+              </a>
+              <a
+                class="button button-secondary"
+                href="https://github.com/fangpin/remote-nvim.nvim/blob/main/README.md"
+                target="_blank"
+                rel="noreferrer"
+                data-i18n="ctaSecondary"
+              >
+                Read README
+              </a>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script src="./main.js"></script>
+  </body>
+</html>

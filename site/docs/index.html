@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en" data-base-prefix="..">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>remote-nvim.nvim Docs</title>
+    <meta
+      name="description"
+      content="Detailed implementation docs for remote-nvim.nvim across providers, transport, persistence, UI, and offline install flows."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Azeret+Mono:wght@400;500;700;800&family=Manrope:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="../styles.css" />
+  </head>
+  <body data-page="docs">
+    <div class="page-shell docs-shell">
+      <div class="noise-layer" aria-hidden="true"></div>
+      <header class="topbar docs-topbar">
+        <a class="brand" href="../" aria-label="remote-nvim.nvim home">
+          <span class="brand-mark">rn</span>
+          <span class="brand-copy">
+            <strong>remote-nvim.nvim</strong>
+            <span data-i18n="brandTagline">remote development for Neovim</span>
+          </span>
+        </a>
+
+        <div class="topbar-actions">
+          <div class="language-toggle" role="group" aria-label="Language toggle">
+            <button type="button" class="lang-button active" data-lang-button="en">EN</button>
+            <button type="button" class="lang-button" data-lang-button="zh-CN">中文</button>
+          </div>
+
+          <nav class="nav-links" aria-label="Primary">
+            <a href="../" data-i18n="docsNavHome">Home</a>
+            <a
+              href="https://github.com/fangpin/remote-nvim.nvim"
+              target="_blank"
+              rel="noreferrer"
+              data-i18n="navGithub"
+            >
+              GitHub
+            </a>
+            <a
+              href="https://github.com/fangpin/remote-nvim.nvim/blob/main/README.md"
+              target="_blank"
+              rel="noreferrer"
+              data-i18n="navReadme"
+            >
+              README
+            </a>
+          </nav>
+        </div>
+      </header>
+
+      <main class="docs-layout">
+        <section class="docs-hero">
+          <div class="eyebrow" data-i18n="docsPageEyebrow">Documentation</div>
+          <h1 data-i18n="docsPageTitle">Implementation notes, not just a landing page.</h1>
+          <p data-i18n="docsPageLead">
+            This section explains how the current Lua plugin is wired: command entrypoints, provider lifecycle,
+            SSH transport, Devpod orchestration, session persistence, diagnostics UI, and remote install scripts.
+          </p>
+          <div class="docs-hero-actions">
+            <a class="button button-primary" href="https://github.com/fangpin/remote-nvim.nvim" target="_blank" rel="noreferrer" data-i18n="docsHeroPrimary">Open repository</a>
+            <a class="button button-secondary" href="https://github.com/fangpin/remote-nvim.nvim/blob/main/doc/remote-nvim.txt" target="_blank" rel="noreferrer" data-i18n="docsHeroSecondary">Open vimdoc</a>
+          </div>
+        </section>
+
+        <div class="docs-grid">
+          <aside class="docs-sidebar">
+            <div class="docs-sidebar-card">
+              <div class="docs-sidebar-label" data-i18n="docsSidebarLabel">Chapters</div>
+              <nav id="docs-nav" class="docs-nav" aria-label="Documentation chapters"></nav>
+            </div>
+
+            <div class="docs-sidebar-card">
+              <div class="docs-sidebar-label" data-i18n="docsSidebarQuickLabel">Quick references</div>
+              <ul class="docs-quicklinks">
+                <li><a href="https://github.com/fangpin/remote-nvim.nvim/blob/main/lua/remote-nvim/init.lua" target="_blank" rel="noreferrer"><code>lua/remote-nvim/init.lua</code></a></li>
+                <li><a href="https://github.com/fangpin/remote-nvim.nvim/blob/main/lua/remote-nvim/providers/provider.lua" target="_blank" rel="noreferrer"><code>provider.lua</code></a></li>
+                <li><a href="https://github.com/fangpin/remote-nvim.nvim/blob/main/lua/remote-nvim/providers/ssh/ssh_executor.lua" target="_blank" rel="noreferrer"><code>ssh_executor.lua</code></a></li>
+                <li><a href="https://github.com/fangpin/remote-nvim.nvim/blob/main/scripts/neovim_install.sh" target="_blank" rel="noreferrer"><code>scripts/neovim_install.sh</code></a></li>
+              </ul>
+            </div>
+          </aside>
+
+          <section class="docs-main">
+            <div class="docs-meta">
+              <span class="docs-meta-label" data-i18n="docsMetaLabel">Current chapter</span>
+              <h2 id="docs-title">Overview</h2>
+              <p id="docs-summary"></p>
+            </div>
+
+            <article id="docs-content" class="docs-article" aria-live="polite"></article>
+          </section>
+        </div>
+      </main>
+    </div>
+
+    <script src="../main.js"></script>
+  </body>
+</html>

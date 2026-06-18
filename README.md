@@ -2,6 +2,9 @@
 
 [中文](README.zh-CN.md) | English
 
+Project site: <https://fangpin.github.io/remote-nvim.nvim/>
+Detailed docs: <https://fangpin.github.io/remote-nvim.nvim/docs/>
+
 Adds support for [remote development](https://code.visualstudio.com/docs/remote/remote-overview)
 and [devcontainers](https://code.visualstudio.com/docs/devcontainers/containers)
 to Neovim (just like VSCode). Read in the [FAQ](#faq) at the end of this document why you would prefer

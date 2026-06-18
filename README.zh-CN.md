@@ -2,6 +2,9 @@
 
 中文 | [English](README.md)
 
+项目主页：<https://fangpin.github.io/remote-nvim.nvim/>
+详细文档：<https://fangpin.github.io/remote-nvim.nvim/docs/>
+
 `remote-nvim.nvim` 为 Neovim 增加类似 VSCode Remote Development 的远程开发体验。它可以在远程 SSH 主机、Devpod 工作区、Docker 镜像或 Docker 容器里启动 Neovim server，并在本地 Neovim 中连接远端 UI。
 
 和直接 `ssh` 到远端再运行 `nvim` 相比，它会帮你自动安装远端 Neovim、隔离远端配置目录、复制本地配置、记录会话并提供清理命令。
