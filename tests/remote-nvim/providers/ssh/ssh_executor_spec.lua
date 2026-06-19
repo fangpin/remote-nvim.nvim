@@ -7,6 +7,8 @@ describe("SSH Executor", function()
   local host = "remote-host"
   local conn_opts = ""
   local other_conn_opts = "-p 2310"
+  local remote_nvim = require("remote-nvim")
+  local remote_nvim_config_copy
   local prompts = {
     {
       match = "password:",
@@ -26,12 +28,19 @@ describe("SSH Executor", function()
 
   local executor, other_executor, executor_run_job_stub, other_executor_run_job_stub
   before_each(function()
+    remote_nvim_config_copy = vim.deepcopy(remote_nvim.config)
+    remote_nvim.config = vim.deepcopy(remote_nvim.default_opts)
+
     executor = SSHExecutor(host, conn_opts)
     executor._ssh_prompts = prompts
     executor_run_job_stub = stub(executor, "run_executor_job")
 
     other_executor = SSHExecutor(host, other_conn_opts)
     other_executor_run_job_stub = stub(other_executor, "run_executor_job")
+  end)
+
+  after_each(function()
+    remote_nvim.config = remote_nvim_config_copy
   end)
 
   describe("should correctly generate rsync connection options", function()

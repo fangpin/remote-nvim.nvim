@@ -133,7 +133,7 @@ describe("Remote Neovim commands", function()
     sessions.devpod1 = make_session({ provider_type = "devpod" })
     sessions.stopped_ssh = make_session({ provider_type = "ssh", running = false })
 
-    local completion = vim.api.nvim_get_commands({})["RemoteDetach"].complete("", "RemoteDetach ")
+    local completion = vim.fn.getcompletion("RemoteDetach ", "cmdline")
 
     assert.same({ "ssh1" }, completion)
   end)
@@ -204,7 +204,7 @@ describe("Remote Neovim commands", function()
     })
     local detached_registry_stub = stub(command, "_detached_registry").returns(registry)
 
-    local completion = vim.api.nvim_get_commands({})["RemoteReattach"].complete("", "RemoteReattach ")
+    local completion = vim.fn.getcompletion("RemoteReattach ", "cmdline")
 
     assert.same({ "host1" }, completion)
 
