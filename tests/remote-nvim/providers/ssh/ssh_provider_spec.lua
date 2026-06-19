@@ -168,11 +168,12 @@ describe("SSH Provider", function()
       return 0
     end)
     stub(provider.server_executor, "last_job_id").returns(99)
+    stub(provider.server_executor, "job_stdout").returns({ "4567" })
     local_free_port_stub = stub(require("remote-nvim.providers.utils"), "find_free_port").returns(52232)
 
     provider:_launch_remote_neovim_server()
 
-    assert.equals(2, executor_status_calls)
+    assert.equals(1, executor_status_calls)
     assert.equals(1, server_status_calls)
     assert.equals(99, provider._remote_server_process_id)
     assert.equals("4567", provider._remote_server_pid)

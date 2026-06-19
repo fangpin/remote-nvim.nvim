@@ -156,7 +156,7 @@ describe("SSH Executor", function()
     assert.stub(executor_run_job_stub).was.called_with(
       match.is_ref(executor),
       match.matches(
-        "ssh remote%-host 'sh %-c '.*rm %-f ~/.remote%-nvim/workspace/nvim%.pid; nohup sh %-c .*exec nvim %-%-listen 0%.0%.0%.0:32123 %-%-headless.* > ~/.remote%-nvim/workspace/nvim%.pid.*'"
+        "ssh remote%-host 'sh %-c '.*rm %-f ~/.remote%-nvim/workspace/nvim%.pid; nohup sh %-c .*exec nvim %-%-listen 0%.0%.0%.0:32123 %-%-headless.*tee ~/.remote%-nvim/workspace/nvim%.pid.*'"
       ),
       match.is_table()
     )
@@ -187,6 +187,15 @@ describe("SSH Executor", function()
     assert.is_nil(command:find("exec cd", 1, true))
     assert.is_not_nil(command:find("/home/test user/project", 1, true))
     assert.is_not_nil(command:find("XDG_CONFIG_HOME=~/.remote-nvim/workspaces/test/.config exec nvim", 1, true))
+  end)
+
+  it("keeps tilde working directories expandable for detached commands", function()
+    local exec_command = executor:_build_detached_exec_command(
+      "nvim --listen 0.0.0.0:32123 --headless",
+      "~/gpu/lab 7"
+    )
+
+    assert.equals("cd ~/'gpu/lab 7' && exec nvim --listen 0.0.0.0:32123 --headless", exec_command)
   end)
 
   describe("should correctly run command job with correct arguments", function()
