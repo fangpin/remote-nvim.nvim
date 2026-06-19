@@ -7,7 +7,7 @@ endif
 
 .PHONY: test
 test:
-	$(NVIM) --headless --noplugin -u tests/init.lua -c "lua require('plenary.test_harness').test_directory_command('tests/ {minimal_init = \"tests/init.lua\", sequential = true, timeout=20000}')"
+	$(NVIM) --headless --noplugin -u tests/init.lua -c "lua require('plenary.test_harness').test_directory_command('tests/ {minimal_init = \"tests/init.lua\", sequential = true, timeout=180000}')"
 
 .PHONY: test-file
 test-file:

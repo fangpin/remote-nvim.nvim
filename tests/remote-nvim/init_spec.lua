@@ -13,6 +13,7 @@ describe("RemoteNeovim", function()
     local rpcrequest_stub
     local list_uis_stub
     local ui_send_stub
+    local cmd_stub
 
     before_each(function()
       previous_neovide = vim.g.neovide
@@ -23,6 +24,7 @@ describe("RemoteNeovim", function()
       rpcrequest_stub = nil
       list_uis_stub = nil
       ui_send_stub = nil
+      cmd_stub = nil
     end)
 
     after_each(function()
@@ -35,6 +37,9 @@ describe("RemoteNeovim", function()
       end
       if ui_send_stub then
         ui_send_stub:revert()
+      end
+      if cmd_stub then
+        cmd_stub:revert()
       end
       vim.g.neovide = previous_neovide
       vim.g.neovide_channel_id = previous_neovide_channel_id
@@ -89,6 +94,12 @@ describe("RemoteNeovim", function()
 
     it("installs a local OSC 52 clipboard bridge for terminal clients without a provider", function()
       ui_send_stub = stub(vim.api, "nvim_ui_send")
+      cmd_stub = stub(vim, "cmd").invokes(function(command)
+        if command == "runtime autoload/provider/clipboard.vim" then
+          return nil
+        end
+        return nil
+      end)
       vim.g.neovide = false
       vim.g.clipboard = nil
       vim.g.loaded_clipboard_provider = nil
