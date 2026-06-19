@@ -156,7 +156,7 @@ describe("SSH Executor", function()
     assert.stub(executor_run_job_stub).was.called_with(
       match.is_ref(executor),
       match.matches(
-        "ssh remote%-host 'sh %-c '.*rm %-f ~/.remote%-nvim/workspace/nvim%.pid; nohup sh %-c .*exec nvim %-%-listen 0%.0%.0%.0:32123 %-%-headless.*tee ~/.remote%-nvim/workspace/nvim%.pid.*'"
+        "ssh remote%-host 'sh %-c '.*rm %-f ~/.remote%-nvim/workspace/nvim%.pid; nohup sh %-c .*exec nvim %-%-listen 0%.0%.0%.0:32123 %-%-headless.*| tee ~/.remote%-nvim/workspace/nvim%.pid.*'"
       ),
       match.is_table()
     )

@@ -1364,6 +1364,35 @@ describe("Provider", function()
         last_job_id_stub:revert()
       end)
 
+      it("for detached SSH by reusing the launch connection output for the remote pid", function()
+        provider.executor.run_detached_server_command = function() end
+        local run_detached_server_command_stub = stub(provider.executor, "run_detached_server_command")
+        local start_port_forward_stub = stub(provider.executor, "start_port_forward")
+        local last_job_status_stub = stub(provider.executor, "last_job_status").returns(0)
+        local last_job_id_stub = stub(provider.executor, "last_job_id").returns(99)
+        local detached_output_stub = stub(provider.executor, "job_stdout")
+        provider.provider_type = "ssh"
+        remote_nvim.config.remote.detach.enabled = true
+
+        detached_output_stub.on_call_with().returns({ "32123" })
+        detached_output_stub.on_call_with(match.is_ref(provider.executor)).returns({ "4567" })
+
+        provider:_launch_remote_neovim_server()
+
+        assert.equals("4567", provider._remote_server_pid)
+        assert.stub(run_detached_server_command_stub).was.called()
+        assert.stub(start_port_forward_stub).was.called()
+        assert.stub(run_command_stub).was.not_called_with(
+          match.is_ref(provider),
+          match.matches("test %-f .*nvim%.pid"),
+          "Reading remote Neovim server PID"
+        )
+
+        detached_output_stub:revert()
+        last_job_status_stub:revert()
+        last_job_id_stub:revert()
+      end)
+
       it("for SSH by passing the working directory to the detached server command", function()
         provider.executor.run_detached_server_command = function() end
         local run_detached_server_command_stub = stub(provider.executor, "run_detached_server_command")
