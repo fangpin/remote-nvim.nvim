@@ -163,7 +163,7 @@ end
 function SSHExecutor:run_detached_server_command(command, pidfile, job_opts)
   job_opts = job_opts or {}
   local exec_command = self:_build_detached_exec_command(command, job_opts.cwd)
-  local script = ("rm -f %s; nohup sh -c %s >/dev/null 2>&1 & printf %%s $! > %s"):format(
+  local script = ("rm -f %s; nohup sh -c %s >/dev/null 2>&1 & printf %%s $! | tee %s"):format(
     pidfile,
     vim.fn.shellescape(exec_command),
     pidfile

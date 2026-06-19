@@ -1216,6 +1216,8 @@ function Provider:_launch_remote_neovim_server()
         stdout_cb = self:_get_stdout_fn_for_node(section_node),
       })
       self:_handle_job_completion("Launching Neovim server on the remote machine", section_node, false, server_executor)
+      local detached_pid_output = server_executor:job_stdout()
+      self._remote_server_pid = detached_pid_output[#detached_pid_output]
 
       local tunnel_node = self.progress_viewer:add_progress_node({
         text = "Starting local port forwarding tunnel",
@@ -1279,12 +1281,14 @@ function Provider:_launch_remote_neovim_server()
         self._remote_server_process_id = self.executor:last_job_id()
       end
     end
-    self:run_command(
-      ("test -f %s && cat %s || true"):format(remote_pidfile_path, remote_pidfile_path),
-      "Reading remote Neovim server PID"
-    )
-    local remote_pid_output = self.executor:job_stdout()
-    self._remote_server_pid = remote_pid_output[#remote_pid_output]
+    if self._remote_server_pid == nil then
+      self:run_command(
+        ("test -f %s && cat %s || true"):format(remote_pidfile_path, remote_pidfile_path),
+        "Reading remote Neovim server PID"
+      )
+      local remote_pid_output = self.executor:job_stdout()
+      self._remote_server_pid = remote_pid_output[#remote_pid_output]
+    end
     self:_refresh_runtime_diagnostics()
     if self:is_remote_server_running() then
       self.progress_viewer:add_session_node({
