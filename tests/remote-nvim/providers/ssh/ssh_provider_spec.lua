@@ -142,7 +142,6 @@ describe("SSH Provider", function()
     local local_free_port_stub
     local executor_status_calls = 0
     local server_status_calls = 0
-    local stdout_call_count = 0
 
     provider = SSHProvider({ host = "remote-host", progress_view = progress_viewer })
     seed_workspace_config(provider)
@@ -154,19 +153,14 @@ describe("SSH Provider", function()
       executor_status_calls = executor_status_calls + 1
       return 0
     end)
-    stub(provider.executor, "job_stdout", function()
-      stdout_call_count = stdout_call_count + 1
-      if stdout_call_count == 1 then
-        return { "32123" }
-      end
-      return { "4567" }
-    end)
+    stub(provider.executor, "job_stdout").returns({ "32123" })
     stub(provider.server_executor, "run_detached_server_command")
     stub(provider.server_executor, "start_port_forward")
     stub(provider.server_executor, "last_job_status", function()
       server_status_calls = server_status_calls + 1
       return 0
     end)
+    stub(provider.server_executor, "job_stdout").returns({ "4567" })
     stub(provider.server_executor, "last_job_id").returns(99)
     stub(provider.server_executor, "job_stdout").returns({ "4567" })
     local_free_port_stub = stub(require("remote-nvim.providers.utils"), "find_free_port").returns(52232)
